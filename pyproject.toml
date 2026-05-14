@@ -37,7 +37,7 @@ dependencies = [
 anthropic = ["anthropic>=0.20"]
 google = ["google-generativeai>=0.5"]
 ollama = []  # No SDK needed, uses httpx (already in core)
-all-providers = ["orchestra-agents[anthropic,google,nats]"]
+all-providers = ["orchestra-tprm[anthropic,google,nats]"]
 storage = ["aiosqlite>=0.19"]
 postgres = ["asyncpg>=0.29"]
 telemetry = [
@@ -129,6 +129,7 @@ tprm = [
   "pyyaml>=6.0",
 ]
 tprm-dev = [
+  "orchestra-tprm[tprm]",
   "respx>=0.21",
   "freezegun>=1.5",
 ]
