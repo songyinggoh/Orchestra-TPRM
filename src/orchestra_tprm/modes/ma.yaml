@@ -1,0 +1,15 @@
+name: ma
+intake_model: gemini-2.5-flash
+router_model: gemini-2.5-flash
+specialists:
+  legal: gemini-2.5-pro
+  financial: gemini-2.5-pro
+  security: gemini-2.5-pro
+  code: gemini-2.5-pro
+  external: gemini-2.5-flash
+policy_model: gemini-2.5-flash
+coordinator_model: gemini-2.5-pro
+coordinator_template: coordinator_ma.tmpl
+policy_pack: ma.yaml
+output_kind: doc
+code_agent_generates_patch: true

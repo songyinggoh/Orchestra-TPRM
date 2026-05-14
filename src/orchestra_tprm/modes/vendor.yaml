@@ -1,0 +1,15 @@
+name: vendor
+intake_model: gemini-2.5-flash
+router_model: gemini-2.5-flash
+specialists:
+  legal: gemini-2.5-flash
+  financial: null
+  security: gemini-2.5-flash
+  code: gemini-2.5-flash
+  external: gemini-2.5-flash
+policy_model: gemini-2.5-flash
+coordinator_model: gemini-2.5-flash
+coordinator_template: coordinator_vendor.tmpl
+policy_pack: vendor.yaml
+output_kind: sheet
+code_agent_generates_patch: false
