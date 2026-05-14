@@ -1,80 +1,94 @@
-"""PolicyAgent — evaluates specialist findings against a loaded policy pack.
+"""PolicyAgent — diffs findings against the mode's policy pack, computes
+a weighted risk score, and writes every finding to BigQuery.
 
-This is a plain async callable node (not a BaseTPRMAgent subclass) because it
-produces risk_score + policy_verdict rather than Findings. Wire into the graph
-as a closure with the policy pack path injected at build time::
-
-    graph.add_node("policy", lambda state: policy_node(state, policy_pack_path))
-
-Returns:
-    ``{"risk_score": float, "policy_verdict": str}``
+Data-driven invariant: all policy parameters are loaded from the YAML file
+referenced by ``ModeConfig.policy_pack`` at construction time. Mode selection
+is expressed entirely through configuration — no branching on mode name.
 """
 from __future__ import annotations
 
+from pathlib import Path
+from typing import Any
+
 import yaml
 
-
-_DEFAULT_WEIGHT = 3  # fallback for unknown severity strings
-
-
-def _get_severity(finding: object) -> str:
-    """Return the severity string from a Finding object or a plain dict."""
-    if isinstance(finding, dict):
-        return str(finding.get("severity", "medium")).lower()
-    return str(getattr(finding, "severity", "medium")).lower()
+from orchestra.core.context import ExecutionContext
+from orchestra_tprm.adapters.protocols import BigQueryAdapterP
+from orchestra_tprm.modes.config import ModeConfig
+from orchestra_tprm.schemas import Finding
 
 
-async def policy_node(state: dict, policy_pack_path: str) -> dict:
-    """Evaluate findings in *state* against the policy pack at *policy_pack_path*.
+class PolicyAgent:
+    """Pure rule-based policy evaluator.
 
-    Parameters
-    ----------
-    state:
-        Workflow state dict.  ``state["findings"]`` may contain ``Finding``
-        instances or plain ``dict`` objects.
-    policy_pack_path:
-        Absolute path to a YAML policy file (vendor.yaml or ma.yaml).
+    Reads the policy pack YAML from ``mode_config.policy_pack``, applies
+    severity weights to the incoming findings, derives a verdict, and
+    appends the findings to BigQuery for audit.
 
-    Returns
-    -------
-    dict
-        ``{"risk_score": float, "policy_verdict": str}``
+    No LLM call is performed — the agent is deterministic and fast.
     """
-    with open(policy_pack_path, encoding="utf-8") as fh:
-        pack = yaml.safe_load(fh)
 
-    weights: dict[str, int] = pack.get("risk_score_weights", {})
-    rules: list[dict] = pack.get("verdict_rules", [])
+    name = "PolicyAgent"
 
-    findings: list = state.get("findings", [])
+    def __init__(
+        self,
+        *,
+        mode_config: ModeConfig,
+        bq: BigQueryAdapterP,
+        dataset: str,
+        table: str,
+    ) -> None:
+        self._cfg = mode_config
+        self._bq = bq
+        self._dataset = dataset
+        self._table = table
+        self._policy: dict[str, Any] = yaml.safe_load(
+            Path(mode_config.policy_pack).read_text(encoding="utf-8")
+        )
 
-    # --- Compute risk score ---
-    raw_score: float = 0.0
-    for finding in findings:
-        sev = _get_severity(finding)
-        raw_score += weights.get(sev, _DEFAULT_WEIGHT)
+    async def __call__(
+        self,
+        state: dict[str, Any],
+        *,
+        ctx: ExecutionContext | None = None,
+    ) -> dict[str, Any]:
+        """Evaluate findings and return state patch with risk_score + policy_verdict."""
+        raw_findings: list[Any] = state.get("findings", [])
 
-    risk_score = min(raw_score, 100.0)
+        # Coerce dicts back to Finding objects (graph state may deserialise as dicts)
+        coerced: list[Finding] = [
+            f if isinstance(f, Finding) else Finding(**f) for f in raw_findings
+        ]
 
-    # --- Apply verdict rules (first match wins) ---
-    verdict = "approve"  # safe fallback if no rules defined
-    for rule in rules:
-        condition: dict = rule.get("condition", {})
+        weights: dict[str, int] = self._policy.get("weights", {})
+        score: int = sum(weights.get(f.severity, 0) for f in coerced)
+        verdict: str = self._verdict(coerced, score)
 
-        if not condition:
-            # Empty dict — default/catch-all rule always matches
-            verdict = rule["verdict"]
-            break
+        # Audit: append all findings to BigQuery (or fake adapter in tests)
+        run_id: str = (
+            getattr(ctx, "run_id", "unknown") if ctx is not None else "unknown"
+        )
+        await self._bq.append_findings(self._dataset, self._table, run_id, coerced)
 
-        req_severity: str = condition.get("severity", "")
-        min_count: int = condition.get("min_count", 1)
+        return {"risk_score": float(score), "policy_verdict": verdict}
 
-        if req_severity:
-            matching = sum(
-                1 for f in findings if _get_severity(f) == req_severity.lower()
-            )
-            if matching >= min_count:
-                verdict = rule["verdict"]
-                break
+    def _verdict(self, findings: list[Finding], score: int) -> str:
+        """Apply YAML-driven verdict rules. Order matters: most-severe first."""
+        rules: dict[str, Any] = self._policy.get("verdict", {})
 
-    return {"risk_score": round(risk_score, 1), "policy_verdict": verdict}
+        # Rule 1: any critical finding → immediate reject
+        if rules.get("reject_if_any_critical") and any(
+            f.severity == "critical" for f in findings
+        ):
+            return "reject"
+
+        # Rule 2: score exceeds hard ceiling → reject
+        if score > rules.get("reject_above", 30):
+            return "reject"
+
+        # Rule 3: score exceeds conditional threshold → conditional-approve
+        if score > rules.get("conditional_above", 10):
+            return "conditional-approve"
+
+        # Default: approve
+        return "approve"
