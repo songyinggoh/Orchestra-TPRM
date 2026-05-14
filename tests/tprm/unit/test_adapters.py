@@ -24,6 +24,7 @@ from orchestra_tprm.adapters import (
     FakeBigQueryAdapter,
     GeminiFilesAdapter,
 )
+from orchestra_tprm.adapters.gemini_files import GeminiFilesAdapterReal
 
 
 # ---------------------------------------------------------------------------
@@ -521,3 +522,145 @@ class TestGeminiFilesAdapterUploadFile:
         """upload_file with nonexistent file_path must raise FileNotFoundError."""
         # This test will be enabled once GeminiFilesAdapter is implemented
         pass
+
+
+# ---------------------------------------------------------------------------
+# GeminiFilesAdapterReal Tests (real adapter, mocked GoogleProvider)
+# ---------------------------------------------------------------------------
+
+class TestGeminiFilesAdapterReal:
+    """GeminiFilesAdapterReal must read a local file and delegate to
+    GoogleProvider.upload_file(), returning a Protocol-shaped dict with
+    keys ``file_uri`` and ``mime_type``.
+
+    All tests mock GoogleProvider.upload_file — no live API calls.
+    """
+
+    @pytest.mark.asyncio
+    async def test_upload_reads_file_and_calls_provider_upload(
+        self, monkeypatch, tmp_path
+    ):
+        """upload() must read bytes from disk and forward them to provider."""
+        # Arrange
+        from orchestra.providers.google import GoogleProvider
+
+        pdf_path = tmp_path / "msa.pdf"
+        pdf_bytes = b"%PDF-1.4 fake content"
+        pdf_path.write_bytes(pdf_bytes)
+
+        captured: dict = {}
+
+        async def fake_upload(self, data, *, mime_type, display_name=None):
+            captured["data"] = data
+            captured["mime_type"] = mime_type
+            captured["display_name"] = display_name
+            return {
+                "file_uri": "https://generativelanguage.googleapis.com/v1beta/files/abc",
+                "mime_type": mime_type,
+                "name": "files/abc",
+            }
+
+        monkeypatch.setattr(GoogleProvider, "upload_file", fake_upload)
+        provider = GoogleProvider(api_key="test-key")
+        adapter = GeminiFilesAdapterReal(provider=provider)
+
+        # Act
+        result = await adapter.upload(str(pdf_path), mime_type="application/pdf")
+
+        # Assert
+        assert captured["data"] == pdf_bytes
+        assert captured["mime_type"] == "application/pdf"
+        assert captured["display_name"] == "msa.pdf"
+        assert result["file_uri"] == (
+            "https://generativelanguage.googleapis.com/v1beta/files/abc"
+        )
+        assert result["mime_type"] == "application/pdf"
+
+        await provider.aclose()
+
+    @pytest.mark.asyncio
+    async def test_upload_returns_only_protocol_keys(self, monkeypatch, tmp_path):
+        """Returned dict must contain exactly the Protocol keys (file_uri, mime_type).
+
+        Extra keys from the provider (e.g. ``name``) must not leak through —
+        the adapter's Protocol contract is {file_uri, mime_type}.
+        """
+        # Arrange
+        from orchestra.providers.google import GoogleProvider
+
+        doc_path = tmp_path / "soc2.pdf"
+        doc_path.write_bytes(b"%PDF-1.4 soc2")
+
+        async def fake_upload(self, data, *, mime_type, display_name=None):
+            return {
+                "file_uri": "https://x/files/xyz",
+                "mime_type": mime_type,
+                "name": "files/xyz",
+                "extra_field": "should-not-leak",
+            }
+
+        monkeypatch.setattr(GoogleProvider, "upload_file", fake_upload)
+        provider = GoogleProvider(api_key="test-key")
+        adapter = GeminiFilesAdapterReal(provider=provider)
+
+        # Act
+        result = await adapter.upload(str(doc_path), mime_type="application/pdf")
+
+        # Assert
+        assert set(result.keys()) == {"file_uri", "mime_type"}
+
+        await provider.aclose()
+
+    @pytest.mark.asyncio
+    async def test_upload_nonexistent_path_raises_file_not_found(
+        self, monkeypatch, tmp_path
+    ):
+        """upload() on a missing path must raise FileNotFoundError before
+        ever calling the provider."""
+        # Arrange
+        from orchestra.providers.google import GoogleProvider
+
+        called = {"provider_invoked": False}
+
+        async def fake_upload(self, data, *, mime_type, display_name=None):
+            called["provider_invoked"] = True
+            return {"file_uri": "x", "mime_type": mime_type, "name": "y"}
+
+        monkeypatch.setattr(GoogleProvider, "upload_file", fake_upload)
+        provider = GoogleProvider(api_key="test-key")
+        adapter = GeminiFilesAdapterReal(provider=provider)
+
+        missing = tmp_path / "does_not_exist.pdf"
+
+        # Act / Assert
+        with pytest.raises(FileNotFoundError):
+            await adapter.upload(str(missing), mime_type="application/pdf")
+
+        assert called["provider_invoked"] is False
+
+        await provider.aclose()
+
+    @pytest.mark.asyncio
+    async def test_upload_propagates_provider_errors(self, monkeypatch, tmp_path):
+        """Exceptions from GoogleProvider.upload_file must propagate to the caller."""
+        # Arrange
+        from orchestra.providers.google import GoogleProvider
+
+        pdf_path = tmp_path / "msa.pdf"
+        pdf_path.write_bytes(b"%PDF-1.4 fake")
+
+        class ProviderBoom(RuntimeError):
+            pass
+
+        async def fake_upload(self, data, *, mime_type, display_name=None):
+            raise ProviderBoom("upload failed")
+
+        monkeypatch.setattr(GoogleProvider, "upload_file", fake_upload)
+        provider = GoogleProvider(api_key="test-key")
+        adapter = GeminiFilesAdapterReal(provider=provider)
+
+        # Act / Assert
+        with pytest.raises(ProviderBoom, match="upload failed"):
+            await adapter.upload(str(pdf_path), mime_type="application/pdf")
+
+        await provider.aclose()
