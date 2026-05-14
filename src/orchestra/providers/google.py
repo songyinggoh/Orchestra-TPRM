@@ -102,7 +102,28 @@ def _messages_to_gemini_format(
                     }
                 )
         else:
-            parts.append({"text": msg.content})
+            if msg.content:
+                parts.append({"text": msg.content})
+            if msg.attachments:
+                for att in msg.attachments:
+                    if "file_uri" in att:
+                        parts.append(
+                            {
+                                "fileData": {
+                                    "fileUri": att["file_uri"],
+                                    "mimeType": att.get("mime_type", "application/octet-stream"),
+                                }
+                            }
+                        )
+                    elif "inline_data_b64" in att:
+                        parts.append(
+                            {
+                                "inlineData": {
+                                    "mimeType": att.get("mime_type", "application/octet-stream"),
+                                    "data": att["inline_data_b64"],
+                                }
+                            }
+                        )
 
         contents.append({"role": role, "parts": parts})
 
@@ -416,6 +437,54 @@ class GoogleProvider:
             model=model,
             raw_response=data,
         )
+
+    async def upload_file(
+        self,
+        data: bytes,
+        *,
+        mime_type: str,
+        display_name: str | None = None,
+    ) -> dict[str, str]:
+        """Upload bytes to the Gemini Files API.
+
+        Returns: {"file_uri": "...", "mime_type": "...", "name": "files/..."}
+        """
+        start_headers = {
+            "X-Goog-Upload-Protocol": "resumable",
+            "X-Goog-Upload-Command": "start",
+            "X-Goog-Upload-Header-Content-Length": str(len(data)),
+            "X-Goog-Upload-Header-Content-Type": mime_type,
+            "Content-Type": "application/json",
+        }
+        body = {"file": {"display_name": display_name or "upload"}}
+        start_resp = await self._client.post(
+            "/upload/v1beta/files",
+            headers=start_headers,
+            json=body,
+        )
+        if start_resp.status_code != 200:
+            self._handle_error_status(start_resp.status_code, start_resp.text)
+        upload_url = start_resp.headers.get("x-goog-upload-url")
+        if not upload_url:
+            raise ProviderError(
+                "Gemini Files API: start response missing x-goog-upload-url"
+            )
+        upload_headers = {
+            "X-Goog-Upload-Offset": "0",
+            "X-Goog-Upload-Command": "upload, finalize",
+            "Content-Type": mime_type,
+        }
+        upload_resp = await self._client.post(
+            upload_url, headers=upload_headers, content=data
+        )
+        if upload_resp.status_code != 200:
+            self._handle_error_status(upload_resp.status_code, upload_resp.text)
+        payload = upload_resp.json().get("file", {})
+        return {
+            "file_uri": payload.get("uri", ""),
+            "mime_type": payload.get("mimeType", mime_type),
+            "name": payload.get("name", ""),
+        }
 
     async def aclose(self) -> None:
         """Close the HTTP client."""
