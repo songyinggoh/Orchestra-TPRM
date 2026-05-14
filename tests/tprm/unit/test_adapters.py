@@ -15,15 +15,18 @@ All tests are unit-level — no network I/O, no live APIs.
 """
 from __future__ import annotations
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 
 from orchestra_tprm.adapters import (
+    FakeBigQueryAdapter,
+    FakeDocsAdapter,
     FakeDriveAdapter,
     FakeSheetsAdapter,
-    FakeDocsAdapter,
-    FakeBigQueryAdapter,
     GeminiFilesAdapter,
 )
+from orchestra_tprm.adapters.drive import DriveAdapter
 
 
 # ---------------------------------------------------------------------------
@@ -521,3 +524,150 @@ class TestGeminiFilesAdapterUploadFile:
         """upload_file with nonexistent file_path must raise FileNotFoundError."""
         # This test will be enabled once GeminiFilesAdapter is implemented
         pass
+
+
+# ---------------------------------------------------------------------------
+# DriveAdapter (real) Tests — service client is mocked
+# ---------------------------------------------------------------------------
+
+class TestDriveAdapterReal:
+    """Real DriveAdapter wraps google-api-python-client Drive v3 with ADC.
+
+    All tests mock the underlying service client — no live API.
+    """
+
+    def _build_mock_service(self, files_payload: list[dict] | None = None) -> MagicMock:
+        """Construct a chainable MagicMock matching the googleapiclient surface."""
+        service = MagicMock(name="drive_service")
+        files_resource = MagicMock(name="files_resource")
+        list_request = MagicMock(name="list_request")
+        list_request.execute.return_value = {"files": files_payload or []}
+        files_resource.list.return_value = list_request
+        service.files.return_value = files_resource
+        return service
+
+    def test_init_does_not_call_google_apis(self):
+        """Constructor must be lazy — no auth or HTTP at __init__ time."""
+        # If `google.auth.default` were called eagerly, instantiation would
+        # require ADC credentials in the test environment. Lazy init means
+        # the test can construct DriveAdapter() with no patches.
+        with patch("google.auth.default") as mock_default, \
+             patch("googleapiclient.discovery.build") as mock_build:
+            adapter = DriveAdapter()
+            assert adapter is not None
+            mock_default.assert_not_called()
+            mock_build.assert_not_called()
+
+    def test_list_files_returns_list_of_dicts(self):
+        """list_files must return the 'files' array from Drive's v3 response."""
+        adapter = DriveAdapter()
+        mock_service = self._build_mock_service([
+            {"id": "f1", "name": "msa.pdf", "mimeType": "application/pdf"},
+            {"id": "f2", "name": "soc2.pdf", "mimeType": "application/pdf"},
+        ])
+
+        with patch.object(adapter, "_get_service", return_value=mock_service):
+            result = adapter.list_files("folder_abc")
+
+        assert isinstance(result, list)
+        assert len(result) == 2
+        assert result[0]["id"] == "f1"
+        assert result[0]["name"] == "msa.pdf"
+
+    def test_list_files_filters_by_folder_id_and_excludes_trashed(self):
+        """The Drive query must scope to parent folder and exclude trashed files."""
+        adapter = DriveAdapter()
+        mock_service = self._build_mock_service([])
+
+        with patch.object(adapter, "_get_service", return_value=mock_service):
+            adapter.list_files("my_folder_123")
+
+        # Inspect the kwargs passed to .files().list(...)
+        files_resource = mock_service.files.return_value
+        call_kwargs = files_resource.list.call_args.kwargs
+        assert "my_folder_123" in call_kwargs["q"]
+        assert "in parents" in call_kwargs["q"]
+        assert "trashed = false" in call_kwargs["q"]
+
+    def test_list_files_requests_metadata_only_fields(self):
+        """Adapter must NOT download blobs — only request metadata fields."""
+        adapter = DriveAdapter()
+        mock_service = self._build_mock_service([])
+
+        with patch.object(adapter, "_get_service", return_value=mock_service):
+            adapter.list_files("any_folder")
+
+        files_resource = mock_service.files.return_value
+        call_kwargs = files_resource.list.call_args.kwargs
+        # Must request metadata fields, must NOT contain anything implying blob download
+        assert "files(" in call_kwargs["fields"]
+        assert "id" in call_kwargs["fields"]
+        assert "name" in call_kwargs["fields"]
+
+    def test_list_files_unknown_folder_returns_empty_list(self):
+        """Empty 'files' array from Drive must surface as []."""
+        adapter = DriveAdapter()
+        mock_service = self._build_mock_service([])
+
+        with patch.object(adapter, "_get_service", return_value=mock_service):
+            result = adapter.list_files("nonexistent_folder")
+
+        assert result == []
+
+    def test_list_files_missing_files_key_returns_empty_list(self):
+        """If the Drive response omits 'files', adapter must default to []."""
+        adapter = DriveAdapter()
+        mock_service = MagicMock()
+        mock_service.files.return_value.list.return_value.execute.return_value = {}
+
+        with patch.object(adapter, "_get_service", return_value=mock_service):
+            result = adapter.list_files("some_folder")
+
+        assert result == []
+
+    def test_get_service_uses_adc_and_builds_drive_v3(self):
+        """_get_service must call google.auth.default and build drive v3."""
+        adapter = DriveAdapter()
+        fake_creds = MagicMock(name="creds")
+        fake_service = MagicMock(name="service")
+
+        with patch("google.auth.default", return_value=(fake_creds, "proj")) as mock_default, \
+             patch("googleapiclient.discovery.build", return_value=fake_service) as mock_build:
+            svc = adapter._get_service()
+
+        assert svc is fake_service
+        mock_default.assert_called_once()
+        mock_build.assert_called_once()
+        # Positional args: ("drive", "v3"); credentials must be passed through
+        build_args, build_kwargs = mock_build.call_args
+        assert build_args[0] == "drive"
+        assert build_args[1] == "v3"
+        assert build_kwargs["credentials"] is fake_creds
+
+    def test_get_service_is_cached_across_calls(self):
+        """_get_service must memoize — only authenticate/build once per adapter."""
+        adapter = DriveAdapter()
+        fake_creds = MagicMock()
+        fake_service = MagicMock()
+
+        with patch("google.auth.default", return_value=(fake_creds, "p")) as mock_default, \
+             patch("googleapiclient.discovery.build", return_value=fake_service) as mock_build:
+            svc1 = adapter._get_service()
+            svc2 = adapter._get_service()
+
+        assert svc1 is svc2
+        assert mock_default.call_count == 1
+        assert mock_build.call_count == 1
+
+    def test_custom_scopes_are_respected(self):
+        """Caller may override OAuth scopes via constructor."""
+        custom = ["https://www.googleapis.com/auth/drive.readonly"]
+        adapter = DriveAdapter(scopes=custom)
+        fake_creds = MagicMock()
+
+        with patch("google.auth.default", return_value=(fake_creds, "p")) as mock_default, \
+             patch("googleapiclient.discovery.build", return_value=MagicMock()):
+            adapter._get_service()
+
+        scopes_arg = mock_default.call_args.kwargs.get("scopes") or mock_default.call_args.args[0]
+        assert scopes_arg == custom
