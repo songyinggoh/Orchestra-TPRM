@@ -188,6 +188,7 @@ class BaseAgent(BaseModel):
                         Message(
                             role=MessageRole.TOOL,
                             content=tool_result.content or tool_result.error or "",
+                            name=tool_call.name,
                             tool_call_id=tool_call.id,
                         )
                     )
