@@ -1,1 +1,29 @@
-criteria: []
+# Vendor onboarding policy — thresholds for third-party risk decisions.
+
+# Severity weights used to compute risk_score (0–100).
+risk_score_weights:
+  low: 1
+  medium: 3
+  high: 7
+  critical: 20
+
+# Verdict rules (evaluated top-to-bottom; first match wins).
+verdict_rules:
+  - id: critical_block
+    description: Any CRITICAL finding triggers a vendor block.
+    condition:
+      severity: critical
+      min_count: 1
+    verdict: block
+
+  - id: high_review
+    description: Two or more HIGH findings require manual review.
+    condition:
+      severity: high
+      min_count: 2
+    verdict: conditional
+
+  - id: approve
+    description: Default — approve with standard monitoring.
+    condition: {}
+    verdict: approve
