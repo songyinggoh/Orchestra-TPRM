@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "orchestra-agents"
+name = "orchestra-tprm"
 version = "0.1.0"
 description = "Python-first multi-agent orchestration framework"
 readme = "README.md"
@@ -116,9 +116,26 @@ docs = [
     "mkdocs-material>=9.5",
     "mkdocstrings[python]>=0.24",
 ]
+tprm = [
+  "asyncpg>=0.29",
+  "pgvector>=0.4",
+  "google-api-python-client>=2.150",
+  "google-auth>=2.35",
+  "google-auth-httplib2>=0.2",
+  "google-cloud-bigquery>=3.27",
+  "google-cloud-secret-manager>=2.21",
+  "pypdf>=5.1",
+  "aiofiles>=24.1",
+  "pyyaml>=6.0",
+]
+tprm-dev = [
+  "respx>=0.21",
+  "freezegun>=1.5",
+]
 
 [project.scripts]
 orchestra = "orchestra.cli.main:app"
+orchestra-tprm = "orchestra_tprm.cli:app"
 
 [project.urls]
 Homepage = "https://github.com/orchestra-agents/orchestra"
@@ -126,7 +143,7 @@ Documentation = "https://orchestra-agents.dev"
 Repository = "https://github.com/orchestra-agents/orchestra"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/orchestra"]
+packages = ["src/orchestra", "src/orchestra_tprm"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
