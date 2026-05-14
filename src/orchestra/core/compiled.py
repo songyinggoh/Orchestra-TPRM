@@ -965,7 +965,8 @@ class CompiledGraph:
         tasks = []
         for target_id in edge.targets:
             node = self._nodes[target_id]
-            tasks.append(self._execute_node(target_id, node, dict(state_dict), context))
+            child_ctx = context.clone_for_branch(node_id=target_id)
+            tasks.append(self._execute_node(target_id, node, dict(state_dict), child_ctx))
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -999,7 +1000,8 @@ class CompiledGraph:
             # Each send gets its own state slice (shallow copy of base state + its specific state)
             scoped_state = dict(state_dict)
             scoped_state.update(send.state)
-            tasks.append(self._execute_node(send.node, node, scoped_state, context))
+            child_ctx = context.clone_for_branch(node_id=send.node)
+            tasks.append(self._execute_node(send.node, node, scoped_state, child_ctx))
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 

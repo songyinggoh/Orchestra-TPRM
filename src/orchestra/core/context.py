@@ -102,6 +102,34 @@ class ExecutionContext:
         """Get a configuration value."""
         return self.config.get(key, default)
 
+    def clone_for_branch(self, *, node_id: str = "") -> "ExecutionContext":
+        """Return a child context safe for one parallel branch.
+
+        Shares immutable injections (provider, tool_registry, identity, memory_manager,
+        event_bus, config) by reference; gives the branch its own mutable
+        bookkeeping (node_id, turn_number, loop_counters, node_execution_order).
+        """
+        return ExecutionContext(
+            run_id=self.run_id,
+            thread_id=self.thread_id,
+            turn_number=0,
+            node_id=node_id,
+            state=self.state,
+            provider=self.provider,
+            tool_registry=self.tool_registry,
+            config=dict(self.config),
+            loop_counters={},
+            node_execution_order=[],
+            event_bus=self.event_bus,
+            tenant_id=self.tenant_id,
+            identity=self.identity,
+            ucan_token=self.ucan_token,
+            delegation_context=self.delegation_context,
+            memory_manager=self.memory_manager,
+            restricted_mode=self.restricted_mode,
+            replay_events=list(self.replay_events),
+        )
+
     @asynccontextmanager
     async def mutate(self) -> AsyncIterator[None]:
         """Async context manager that serialises mutations to shared fields.
