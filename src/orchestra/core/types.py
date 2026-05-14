@@ -35,6 +35,7 @@ class Message(BaseModel):
     name: str | None = None
     tool_call_id: str | None = None
     tool_calls: list[ToolCall] | None = None
+    attachments: list[dict[str, Any]] | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     model_config = {"frozen": True}
