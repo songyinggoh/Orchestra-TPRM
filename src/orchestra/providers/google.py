@@ -507,8 +507,8 @@ def _map_finish_reason(
     mapping = {
         "STOP": "stop",
         "MAX_TOKENS": "length",
-        "SAFETY": "stop",
-        "RECITATION": "stop",
+        "SAFETY": "safety",
+        "RECITATION": "safety",
         "OTHER": "stop",
         "FUNCTION_CALL": "tool_calls",
     }

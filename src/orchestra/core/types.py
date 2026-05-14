@@ -101,7 +101,7 @@ class LLMResponse(BaseModel):
 
     content: str | None = None
     tool_calls: list[ToolCall] = Field(default_factory=list)
-    finish_reason: Literal["stop", "tool_calls", "length", "error"] = "stop"
+    finish_reason: Literal["stop", "tool_calls", "length", "error", "safety"] = "stop"
     usage: TokenUsage | None = None
     model: str = ""
     raw_response: Any = None
@@ -113,7 +113,7 @@ class StreamChunk(BaseModel):
     """A single chunk from a streaming LLM response."""
 
     content: str = ""
-    finish_reason: Literal["stop", "tool_calls", "length", "error"] | None = None
+    finish_reason: Literal["stop", "tool_calls", "length", "error", "safety"] | None = None
     tool_calls: list[ToolCall] = Field(default_factory=list)
     model: str = ""
 
