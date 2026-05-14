@@ -15,15 +15,26 @@ All tests are unit-level — no network I/O, no live APIs.
 """
 from __future__ import annotations
 
+import base64
+
+import httpx
 import pytest
 
 from orchestra_tprm.adapters import (
-    FakeDriveAdapter,
-    FakeSheetsAdapter,
-    FakeDocsAdapter,
     FakeBigQueryAdapter,
-    GeminiFilesAdapter,
+    FakeDocsAdapter,
+    FakeDriveAdapter,
+    FakeGitHubAdapter,
+    FakeSheetsAdapter,
+    GeminiFilesAdapter,  # re-exported for downstream tests; keep imported
+    GitHubAdapter,
+    GitHubAdapterP,
 )
+
+# Reference GeminiFilesAdapter so ruff F401 sees a use — the placeholder
+# tests below only have `pass` bodies, so the class itself is not yet
+# exercised, but the import is intentional surface-area validation.
+_GEMINI_FILES_REF = GeminiFilesAdapter
 
 
 # ---------------------------------------------------------------------------
@@ -521,3 +532,435 @@ class TestGeminiFilesAdapterUploadFile:
         """upload_file with nonexistent file_path must raise FileNotFoundError."""
         # This test will be enabled once GeminiFilesAdapter is implemented
         pass
+
+
+# ---------------------------------------------------------------------------
+# FakeGitHubAdapter Tests
+# ---------------------------------------------------------------------------
+
+class TestFakeGitHubAdapter:
+    """FakeGitHubAdapter must serve seeded data and return safe defaults."""
+
+    @pytest.mark.asyncio
+    async def test_fake_returns_canned_metadata(self):
+        """Seeded repo metadata round-trips through get_repo_metadata."""
+        # Arrange
+        fake = FakeGitHubAdapter(
+            repos={
+                "https://github.com/example/acme-cloud": {
+                    "license": "MIT",
+                    "stars": 12,
+                    "open_issues": 3,
+                    "default_branch": "main",
+                    "last_commit_iso": "2025-08-01T00:00:00Z",
+                },
+            },
+        )
+
+        # Act
+        md = await fake.get_repo_metadata("https://github.com/example/acme-cloud")
+
+        # Assert
+        assert md["license"] == "MIT"
+        assert md["stars"] == 12
+        assert md["open_issues"] == 3
+        assert md["default_branch"] == "main"
+
+    @pytest.mark.asyncio
+    async def test_fake_returns_canned_org_repos(self):
+        """Seeded org_repos round-trips through list_org_repos."""
+        # Arrange
+        fake = FakeGitHubAdapter(
+            org_repos={
+                "hashicorp": [
+                    {"name": "terraform", "license": "BSL-1.1", "stars": 41000},
+                    {"name": "vault", "license": "BSL-1.1", "stars": 30000},
+                ],
+            },
+        )
+
+        # Act
+        org = await fake.list_org_repos("hashicorp")
+
+        # Assert
+        assert {r["name"] for r in org} == {"terraform", "vault"}
+
+    @pytest.mark.asyncio
+    async def test_fake_unknown_repo_returns_empty_dict(self):
+        """get_repo_metadata for unseeded URL returns {} instead of raising."""
+        # Arrange
+        fake = FakeGitHubAdapter()
+
+        # Act
+        md = await fake.get_repo_metadata("https://github.com/missing/missing")
+
+        # Assert
+        assert md == {}
+
+    @pytest.mark.asyncio
+    async def test_fake_unknown_org_returns_empty_list(self):
+        """list_org_repos for unseeded org returns [] instead of raising."""
+        # Arrange
+        fake = FakeGitHubAdapter()
+
+        # Act
+        repos = await fake.list_org_repos("nobody")
+
+        # Assert
+        assert repos == []
+
+    @pytest.mark.asyncio
+    async def test_fake_license_file_seeded_and_default(self):
+        """get_license_file returns seeded text or empty string default."""
+        # Arrange
+        fake = FakeGitHubAdapter(
+            licenses={"https://github.com/example/repo": "MIT License\n..."},
+        )
+
+        # Act
+        seeded = await fake.get_license_file("https://github.com/example/repo")
+        missing = await fake.get_license_file("https://github.com/other/other")
+
+        # Assert
+        assert "MIT License" in seeded
+        assert missing == ""
+
+    @pytest.mark.asyncio
+    async def test_fake_sbom_seeded_and_default(self):
+        """get_dependency_sbom returns seeded SBOM or empty dict."""
+        # Arrange
+        fake = FakeGitHubAdapter(
+            sboms={"https://github.com/example/repo": {"sbom": {"packages": []}}},
+        )
+
+        # Act
+        seeded = await fake.get_dependency_sbom("https://github.com/example/repo")
+        missing = await fake.get_dependency_sbom("https://github.com/x/y")
+
+        # Assert
+        assert seeded == {"sbom": {"packages": []}}
+        assert missing == {}
+
+    def test_fake_satisfies_protocol(self):
+        """FakeGitHubAdapter must structurally satisfy GitHubAdapterP."""
+        fake = FakeGitHubAdapter()
+        assert isinstance(fake, GitHubAdapterP)
+
+
+# ---------------------------------------------------------------------------
+# GitHubAdapter (real, httpx-backed) Tests
+# ---------------------------------------------------------------------------
+
+def _make_handler(routes: dict[str, httpx.Response]):
+    """Build a MockTransport handler from a {path: Response} mapping."""
+
+    def _handler(request: httpx.Request) -> httpx.Response:
+        # Match by path only — query string ignored for simplicity.
+        path = request.url.path
+        if path in routes:
+            return routes[path]
+        return httpx.Response(404, json={"message": "Not Found"})
+
+    return _handler
+
+
+class TestGitHubAdapterConstruction:
+    """GitHubAdapter must construct lazily — no token, no network at init."""
+
+    def test_construct_without_token_does_not_raise(self, monkeypatch):
+        """Constructing without GITHUB_TOKEN must not raise."""
+        # Arrange
+        monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+
+        # Act
+        adapter = GitHubAdapter()
+
+        # Assert
+        assert adapter is not None
+
+    def test_construct_does_not_open_http_client_eagerly(self, monkeypatch):
+        """The httpx client must be lazily created on first request."""
+        # Arrange
+        monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+
+        # Act
+        adapter = GitHubAdapter()
+
+        # Assert
+        assert adapter._client is None
+
+    def test_satisfies_protocol(self):
+        """GitHubAdapter must structurally satisfy GitHubAdapterP."""
+        adapter = GitHubAdapter()
+        assert isinstance(adapter, GitHubAdapterP)
+
+
+class TestGitHubAdapterGetRepoMetadata:
+    """get_repo_metadata must call /repos/{owner}/{repo} and normalize."""
+
+    @pytest.mark.asyncio
+    async def test_returns_normalized_metadata(self):
+        # Arrange
+        repo_url = "https://github.com/example/acme-cloud"
+        handler = _make_handler({
+            "/repos/example/acme-cloud": httpx.Response(
+                200,
+                json={
+                    "name": "acme-cloud",
+                    "license": {"spdx_id": "MIT", "name": "MIT License"},
+                    "stargazers_count": 42,
+                    "open_issues_count": 5,
+                    "default_branch": "main",
+                    "pushed_at": "2025-08-01T00:00:00Z",
+                    "description": "ETL toolkit",
+                    "language": "Python",
+                },
+            ),
+        })
+        transport = httpx.MockTransport(handler)
+        adapter = GitHubAdapter(token="fake-token", transport=transport)
+
+        # Act
+        md = await adapter.get_repo_metadata(repo_url)
+        await adapter.aclose()
+
+        # Assert
+        assert md == {
+            "license": "MIT",
+            "stars": 42,
+            "open_issues": 5,
+            "default_branch": "main",
+            "last_commit_iso": "2025-08-01T00:00:00Z",
+            "description": "ETL toolkit",
+            "language": "Python",
+        }
+
+    @pytest.mark.asyncio
+    async def test_missing_license_returns_unlicensed(self):
+        """A repo with no detected license must produce 'UNLICENSED'."""
+        # Arrange
+        handler = _make_handler({
+            "/repos/example/nolicense": httpx.Response(
+                200,
+                json={
+                    "name": "nolicense",
+                    "license": None,
+                    "stargazers_count": 0,
+                    "open_issues_count": 0,
+                    "default_branch": "main",
+                    "pushed_at": None,
+                    "description": None,
+                    "language": None,
+                },
+            ),
+        })
+        adapter = GitHubAdapter(transport=httpx.MockTransport(handler))
+
+        # Act
+        md = await adapter.get_repo_metadata("https://github.com/example/nolicense")
+        await adapter.aclose()
+
+        # Assert
+        assert md["license"] == "UNLICENSED"
+        assert md["description"] == ""
+        assert md["language"] == ""
+        assert md["last_commit_iso"] == ""
+
+    @pytest.mark.asyncio
+    async def test_invalid_url_raises_valueerror(self):
+        """A URL with no owner/repo path must raise ValueError before HTTP."""
+        # Arrange
+        adapter = GitHubAdapter(transport=httpx.MockTransport(_make_handler({})))
+
+        # Act + Assert
+        with pytest.raises(ValueError):
+            await adapter.get_repo_metadata("https://github.com/")
+
+    @pytest.mark.asyncio
+    async def test_http_error_propagates(self):
+        """Non-2xx responses from GitHub must raise via httpx."""
+        # Arrange
+        handler = _make_handler({})  # everything 404s
+        adapter = GitHubAdapter(transport=httpx.MockTransport(handler))
+
+        # Act + Assert
+        with pytest.raises(httpx.HTTPStatusError):
+            await adapter.get_repo_metadata("https://github.com/missing/missing")
+        await adapter.aclose()
+
+
+class TestGitHubAdapterListOrgRepos:
+    """list_org_repos must paginate /orgs/{org}/repos and normalize each entry."""
+
+    @pytest.mark.asyncio
+    async def test_returns_normalized_repo_list(self):
+        # Arrange
+        handler = _make_handler({
+            "/orgs/hashicorp/repos": httpx.Response(
+                200,
+                json=[
+                    {
+                        "name": "terraform",
+                        "license": {"spdx_id": "BSL-1.1"},
+                        "stargazers_count": 41000,
+                        "language": "Go",
+                    },
+                    {
+                        "name": "vault",
+                        "license": {"spdx_id": "BSL-1.1"},
+                        "stargazers_count": 30000,
+                        "language": "Go",
+                    },
+                ],
+            ),
+        })
+        adapter = GitHubAdapter(transport=httpx.MockTransport(handler))
+
+        # Act
+        repos = await adapter.list_org_repos("hashicorp")
+        await adapter.aclose()
+
+        # Assert
+        assert {r["name"] for r in repos} == {"terraform", "vault"}
+        assert all(r["license"] == "BSL-1.1" for r in repos)
+
+    @pytest.mark.asyncio
+    async def test_empty_org_returns_empty_list(self):
+        # Arrange
+        handler = _make_handler({
+            "/orgs/empty/repos": httpx.Response(200, json=[]),
+        })
+        adapter = GitHubAdapter(transport=httpx.MockTransport(handler))
+
+        # Act
+        repos = await adapter.list_org_repos("empty")
+        await adapter.aclose()
+
+        # Assert
+        assert repos == []
+
+
+class TestGitHubAdapterLicenseFile:
+    """get_license_file must base64-decode GitHub's license payload."""
+
+    @pytest.mark.asyncio
+    async def test_returns_decoded_license_text(self):
+        # Arrange
+        text = "MIT License\n\nCopyright (c) 2025"
+        encoded = base64.b64encode(text.encode("utf-8")).decode("ascii")
+        handler = _make_handler({
+            "/repos/example/repo/license": httpx.Response(
+                200,
+                json={"content": encoded, "encoding": "base64"},
+            ),
+        })
+        adapter = GitHubAdapter(transport=httpx.MockTransport(handler))
+
+        # Act
+        license_text = await adapter.get_license_file("https://github.com/example/repo")
+        await adapter.aclose()
+
+        # Assert
+        assert "MIT License" in license_text
+
+    @pytest.mark.asyncio
+    async def test_missing_license_returns_empty_string(self):
+        """A 404 from /license must yield '' rather than raising."""
+        # Arrange
+        handler = _make_handler({})  # 404 default
+        adapter = GitHubAdapter(transport=httpx.MockTransport(handler))
+
+        # Act
+        result = await adapter.get_license_file("https://github.com/example/nolic")
+        await adapter.aclose()
+
+        # Assert
+        assert result == ""
+
+
+class TestGitHubAdapterDependencySbom:
+    """get_dependency_sbom must hit the dependency-graph SBOM endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_returns_sbom_payload(self):
+        # Arrange
+        payload = {"sbom": {"SPDXID": "SPDXRef-DOCUMENT", "packages": []}}
+        handler = _make_handler({
+            "/repos/example/repo/dependency-graph/sbom": httpx.Response(
+                200, json=payload
+            ),
+        })
+        adapter = GitHubAdapter(transport=httpx.MockTransport(handler))
+
+        # Act
+        sbom = await adapter.get_dependency_sbom("https://github.com/example/repo")
+        await adapter.aclose()
+
+        # Assert
+        assert sbom == payload
+
+    @pytest.mark.asyncio
+    async def test_forbidden_or_missing_returns_empty_dict(self):
+        """403/404 from SBOM endpoint must yield {} rather than raising."""
+        # Arrange
+        handler = _make_handler({
+            "/repos/example/forbidden/dependency-graph/sbom": httpx.Response(
+                403, json={"message": "Forbidden"}
+            ),
+        })
+        adapter = GitHubAdapter(transport=httpx.MockTransport(handler))
+
+        # Act
+        forbidden = await adapter.get_dependency_sbom(
+            "https://github.com/example/forbidden"
+        )
+        missing = await adapter.get_dependency_sbom(
+            "https://github.com/example/nope"
+        )
+        await adapter.aclose()
+
+        # Assert
+        assert forbidden == {}
+        assert missing == {}
+
+
+class TestGitHubAdapterAuthHeaders:
+    """The Authorization header must reflect the resolved token."""
+
+    @pytest.mark.asyncio
+    async def test_token_from_env_is_used(self, monkeypatch):
+        # Arrange
+        monkeypatch.setenv("GITHUB_TOKEN", "env-token-123")
+        observed: dict[str, str] = {}
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            observed["auth"] = request.headers.get("Authorization", "")
+            return httpx.Response(200, json={"name": "x"})
+
+        adapter = GitHubAdapter(transport=httpx.MockTransport(_handler))
+
+        # Act
+        await adapter.get_repo_metadata("https://github.com/a/b")
+        await adapter.aclose()
+
+        # Assert
+        assert observed["auth"] == "Bearer env-token-123"
+
+    @pytest.mark.asyncio
+    async def test_no_token_sends_no_auth_header(self, monkeypatch):
+        # Arrange
+        monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+        observed: dict[str, str] = {}
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            observed["auth"] = request.headers.get("Authorization", "")
+            return httpx.Response(200, json={"name": "x"})
+
+        adapter = GitHubAdapter(transport=httpx.MockTransport(_handler))
+
+        # Act
+        await adapter.get_repo_metadata("https://github.com/a/b")
+        await adapter.aclose()
+
+        # Assert
+        assert observed["auth"] == ""

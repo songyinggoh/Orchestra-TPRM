@@ -1,6 +1,16 @@
 """Shared test fixtures for Orchestra test suite."""
 
+import sys
+from pathlib import Path
+
 import pytest
+
+# Ensure this worktree's src/ wins over any editable install pointing
+# at a sibling working tree (e.g. ../Orchestra/). Without this, tests
+# import the parent tree's modules and never see local edits.
+_SRC = Path(__file__).resolve().parent.parent / "src"
+if _SRC.exists() and str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
 
 
 @pytest.fixture(autouse=True)
