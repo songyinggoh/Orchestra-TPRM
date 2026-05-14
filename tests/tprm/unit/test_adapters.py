@@ -521,3 +521,216 @@ class TestGeminiFilesAdapterUploadFile:
         """upload_file with nonexistent file_path must raise FileNotFoundError."""
         # This test will be enabled once GeminiFilesAdapter is implemented
         pass
+
+
+# ---------------------------------------------------------------------------
+# Real BigQueryAdapter Tests — post-run bq load shipper
+# ---------------------------------------------------------------------------
+#
+# The real BigQueryAdapter (alongside FakeBigQueryAdapter) reads audit rows
+# from Postgres and ships them to `tprm_audit.tprm_findings` via a single
+# `load_table_from_json` call. Both the Postgres session and the
+# `google.cloud.bigquery.Client` are mocked here — no live DB or BQ traffic.
+#
+# Live Cloud SQL is NOT YET PROVISIONED, so the integration path stays RED.
+# These unit tests pin the contract until the integration suite is wired up.
+# ---------------------------------------------------------------------------
+
+from contextlib import asynccontextmanager
+from unittest.mock import MagicMock, patch
+
+from orchestra_tprm.adapters.bigquery import (
+    BigQueryAdapter,
+    _findings_to_rows,
+)
+from orchestra_tprm.schemas import Citation, Finding
+
+
+def _make_session_factory(rows: list[dict]):
+    """Build an async-context-manager session factory whose execute() returns
+    `rows` shaped as SQLAlchemy ``Row`` mappings."""
+
+    class _Result:
+        def __init__(self, rs):
+            self._rs = rs
+
+        def __iter__(self):
+            for r in self._rs:
+                row = MagicMock()
+                row._mapping = r
+                yield row
+
+    session_obj = MagicMock()
+
+    async def _execute(*_a, **_kw):
+        return _Result(rows)
+
+    session_obj.execute = _execute
+
+    @asynccontextmanager
+    async def _factory():
+        yield session_obj
+
+    return _factory, session_obj
+
+
+class TestBigQueryAdapterReal:
+    """Real BigQueryAdapter — post-run bq load shipper. Both Postgres and
+    bigquery.Client are mocked."""
+
+    def test_findings_to_rows_includes_run_id_and_dates(self):
+        """_findings_to_rows produces rows with run_id, run_date, ingested_at."""
+        # Arrange
+        f = Finding(
+            agent="LegalAgent",
+            category="liability",
+            severity="high",
+            summary="cap low",
+            evidence=[Citation(file_id="msa.pdf", page=12, snippet="cap...")],
+            raw={"clause": "8.2"},
+        )
+
+        # Act
+        rows = _findings_to_rows("run-123", [f])
+
+        # Assert
+        assert len(rows) == 1
+        assert rows[0]["run_id"] == "run-123"
+        assert rows[0]["agent"] == "LegalAgent"
+        assert rows[0]["severity"] == "high"
+        assert "run_date" in rows[0]
+        assert "ingested_at" in rows[0]
+
+    def test_findings_to_rows_serializes_evidence_and_raw_as_json(self):
+        """evidence and raw must be JSON strings (BQ JSON columns accept strings)."""
+        # Arrange
+        f = Finding(
+            agent="A", category="c", severity="low", summary="s",
+            evidence=[Citation(file_id="x.pdf", page=1)],
+            raw={"k": "v"},
+        )
+
+        # Act
+        rows = _findings_to_rows("r1", [f])
+
+        # Assert
+        assert isinstance(rows[0]["evidence"], str)
+        assert rows[0]["evidence"].startswith("[")
+        assert isinstance(rows[0]["raw"], str)
+        assert rows[0]["raw"].startswith("{")
+
+    def test_findings_to_rows_empty_findings_returns_empty(self):
+        """No findings → no rows."""
+        assert _findings_to_rows("r1", []) == []
+
+    @pytest.mark.asyncio
+    async def test_append_findings_no_findings_returns_zero_without_bq_call(self):
+        """When findings list is empty, no BQ client is constructed."""
+        # Arrange
+        adapter = BigQueryAdapter(project="proj-test")
+        mock_client = MagicMock()
+        adapter._client = mock_client
+
+        # Act
+        n = await adapter.append_findings("tprm_audit", "tprm_findings", "r1", [])
+
+        # Assert
+        assert n == 0
+        mock_client.load_table_from_json.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_append_findings_calls_load_table_from_json_with_rows(self):
+        """append_findings serialises findings and invokes load_table_from_json once."""
+        # Arrange
+        adapter = BigQueryAdapter(project="proj-test")
+        mock_client = MagicMock()
+        mock_job = MagicMock()
+        mock_client.load_table_from_json.return_value = mock_job
+        adapter._client = mock_client
+
+        f = Finding(agent="A", category="c", severity="medium", summary="s")
+
+        # Act
+        with patch("orchestra_tprm.adapters.bigquery._import_bigquery") as imp:
+            fake_bq = MagicMock()
+            fake_bq.WriteDisposition.WRITE_APPEND = "WRITE_APPEND"
+            fake_bq.LoadJobConfig = MagicMock(return_value="cfg")
+            imp.return_value = fake_bq
+            n = await adapter.append_findings(
+                "tprm_audit", "tprm_findings", "run-9", [f, f]
+            )
+
+        # Assert
+        assert n == 2
+        assert mock_client.load_table_from_json.call_count == 1
+        mock_job.result.assert_called_once()
+        # rows arg is first positional; verify run_id propagated
+        call_rows = mock_client.load_table_from_json.call_args.args[0]
+        assert all(r["run_id"] == "run-9" for r in call_rows)
+
+    @pytest.mark.asyncio
+    async def test_ship_audit_events_no_postgres_rows_returns_zero(self):
+        """If Postgres returns no rows for run_id, BQ is not invoked."""
+        # Arrange
+        adapter = BigQueryAdapter(project="proj-test")
+        mock_client = MagicMock()
+        adapter._client = mock_client
+        factory, _sess = _make_session_factory(rows=[])
+
+        # Act
+        n = await adapter.ship_audit_events_to_bq(
+            "tprm_audit", "tprm_findings", "run-empty",
+            session_factory=factory,
+        )
+
+        # Assert
+        assert n == 0
+        mock_client.load_table_from_json.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_ship_audit_events_loads_postgres_rows_to_bq(self):
+        """Postgres rows are batch-loaded via load_table_from_json (no streaming)."""
+        # Arrange
+        pg_rows = [
+            {"run_id": "run-7", "ts": "2026-05-15T10:00:00", "event_type": "started", "payload": {}},
+            {"run_id": "run-7", "ts": "2026-05-15T10:01:00", "event_type": "finding", "payload": {"x": 1}},
+        ]
+        factory, _sess = _make_session_factory(rows=pg_rows)
+
+        adapter = BigQueryAdapter(project="proj-test")
+        mock_client = MagicMock()
+        mock_job = MagicMock()
+        mock_client.load_table_from_json.return_value = mock_job
+        adapter._client = mock_client
+
+        # Act
+        with patch("orchestra_tprm.adapters.bigquery._import_bigquery") as imp:
+            fake_bq = MagicMock()
+            fake_bq.WriteDisposition.WRITE_APPEND = "WRITE_APPEND"
+            fake_bq.LoadJobConfig = MagicMock(return_value="cfg")
+            imp.return_value = fake_bq
+            n = await adapter.ship_audit_events_to_bq(
+                "tprm_audit", "tprm_findings", "run-7",
+                session_factory=factory,
+            )
+
+        # Assert
+        assert n == 2
+        assert mock_client.load_table_from_json.call_count == 1
+        mock_job.result.assert_called_once()
+        # Verify table targeting used the env-default dataset/table
+        loaded_rows = mock_client.load_table_from_json.call_args.args[0]
+        assert loaded_rows == pg_rows
+
+    def test_real_adapter_does_not_break_fake(self):
+        """Adding the real adapter must not change FakeBigQueryAdapter's surface."""
+        # Arrange + Act
+        from orchestra_tprm.adapters.bigquery import FakeBigQueryAdapter
+
+        fake = FakeBigQueryAdapter()
+        # The legacy in-memory API must still work
+        fake.insert_row("ds", "tbl", {"k": "v"})
+        fake.insert_rows("ds", "tbl", [{"a": 1}, {"b": 2}])
+
+        # Assert — three rows total in the legacy table
+        assert len(fake._tables[("ds", "tbl")]) == 3
