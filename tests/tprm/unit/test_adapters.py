@@ -30,6 +30,7 @@ from orchestra_tprm.adapters import (
     GeminiFilesAdapter,  # re-exported for downstream tests; keep imported
     GitHubAdapter,
     GitHubAdapterP,
+    SheetsAdapter,
 )
 from orchestra_tprm.adapters.drive import DriveAdapter
 from orchestra_tprm.adapters.gemini_files import GeminiFilesAdapterReal
@@ -1253,3 +1254,238 @@ class TestDriveAdapterReal:
 
         scopes_arg = mock_default.call_args.kwargs.get("scopes") or mock_default.call_args.args[0]
         assert scopes_arg == custom
+
+
+# ---------------------------------------------------------------------------
+# SheetsAdapter (REAL) Tests — mocked Sheets v4 API client
+# ---------------------------------------------------------------------------
+
+
+class TestSheetsAdapterReal:
+    """Real SheetsAdapter: ADC-authenticated wrapper over the Sheets v4 API.
+
+    The real adapter shares the Fake's Protocol (append_row, read_rows) and adds
+    populate_vendor_form() which expands the SHEETS_VENDOR_TEMPLATE_ID sheet via
+    batchUpdate. All Google API calls are mocked — no live network I/O.
+    """
+
+    def _build_mock_service(self) -> MagicMock:
+        """Construct a mock googleapiclient service mirroring the call chain used."""
+        service = MagicMock(name="sheets_service")
+        # values().append(...).execute()
+        service.spreadsheets.return_value.values.return_value.append.return_value.execute.return_value = {
+            "updates": {"updatedRows": 1}
+        }
+        # values().get(...).execute()
+        service.spreadsheets.return_value.values.return_value.get.return_value.execute.return_value = {
+            "values": [
+                ["col1", "col2"],
+                ["v1", "v2"],
+                ["v3", "v4"],
+            ]
+        }
+        # batchUpdate(...).execute()
+        service.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = {
+            "replies": []
+        }
+        # values().batchUpdate(...).execute()
+        service.spreadsheets.return_value.values.return_value.batchUpdate.return_value.execute.return_value = {
+            "totalUpdatedRows": 5
+        }
+        return service
+
+    def test_init_reads_template_id_from_env(self, monkeypatch):
+        """SheetsAdapter must read SHEETS_VENDOR_TEMPLATE_ID env var on construction."""
+        # Arrange
+        monkeypatch.setenv("SHEETS_VENDOR_TEMPLATE_ID", "tmpl-abc-123")
+
+        # Act
+        with patch("orchestra_tprm.adapters.sheets.google_auth_default") as mock_auth, \
+             patch("orchestra_tprm.adapters.sheets.build") as mock_build:
+            mock_auth.return_value = (MagicMock(name="creds"), "test-project")
+            mock_build.return_value = self._build_mock_service()
+            adapter = SheetsAdapter()
+
+        # Assert
+        assert adapter.template_id == "tmpl-abc-123"
+
+    def test_init_template_id_missing_defaults_to_none(self, monkeypatch):
+        """If SHEETS_VENDOR_TEMPLATE_ID unset, template_id is None (not an error)."""
+        # Arrange
+        monkeypatch.delenv("SHEETS_VENDOR_TEMPLATE_ID", raising=False)
+
+        # Act
+        with patch("orchestra_tprm.adapters.sheets.google_auth_default") as mock_auth, \
+             patch("orchestra_tprm.adapters.sheets.build") as mock_build:
+            mock_auth.return_value = (MagicMock(), "p")
+            mock_build.return_value = self._build_mock_service()
+            adapter = SheetsAdapter()
+
+        # Assert
+        assert adapter.template_id is None
+
+    def test_init_uses_adc_with_spreadsheets_scope(self, monkeypatch):
+        """Constructor must call google.auth.default with the spreadsheets scope (ADC pattern)."""
+        # Arrange
+        monkeypatch.delenv("SHEETS_VENDOR_TEMPLATE_ID", raising=False)
+
+        # Act
+        with patch("orchestra_tprm.adapters.sheets.google_auth_default") as mock_auth, \
+             patch("orchestra_tprm.adapters.sheets.build") as mock_build:
+            mock_auth.return_value = (MagicMock(name="creds"), "p")
+            mock_build.return_value = self._build_mock_service()
+            SheetsAdapter()
+
+        # Assert
+        mock_auth.assert_called_once()
+        _, kwargs = mock_auth.call_args
+        scopes = kwargs.get("scopes") or (mock_auth.call_args.args[0] if mock_auth.call_args.args else None)
+        assert scopes is not None
+        assert any("spreadsheets" in s for s in scopes)
+
+    def test_init_builds_sheets_v4_service(self, monkeypatch):
+        """Constructor must build the 'sheets' v4 service via googleapiclient.discovery.build."""
+        # Arrange
+        monkeypatch.delenv("SHEETS_VENDOR_TEMPLATE_ID", raising=False)
+
+        # Act
+        with patch("orchestra_tprm.adapters.sheets.google_auth_default") as mock_auth, \
+             patch("orchestra_tprm.adapters.sheets.build") as mock_build:
+            mock_creds = MagicMock(name="creds")
+            mock_auth.return_value = (mock_creds, "p")
+            mock_build.return_value = self._build_mock_service()
+            SheetsAdapter()
+
+        # Assert
+        mock_build.assert_called_once()
+        args, kwargs = mock_build.call_args
+        assert args[0] == "sheets"
+        assert args[1] == "v4"
+        assert kwargs.get("credentials") is mock_creds
+        assert kwargs.get("cache_discovery") is False
+
+    def test_append_row_calls_sheets_values_append(self, monkeypatch):
+        """append_row(sheet_id, row_data) must call spreadsheets.values.append on the live API."""
+        # Arrange
+        monkeypatch.delenv("SHEETS_VENDOR_TEMPLATE_ID", raising=False)
+        mock_service = self._build_mock_service()
+
+        with patch("orchestra_tprm.adapters.sheets.google_auth_default") as mock_auth, \
+             patch("orchestra_tprm.adapters.sheets.build") as mock_build:
+            mock_auth.return_value = (MagicMock(), "p")
+            mock_build.return_value = mock_service
+            adapter = SheetsAdapter()
+
+            # Act
+            result = adapter.append_row("sheet-real-001", {"name": "Acme", "verdict": "approve"})
+
+        # Assert
+        assert result is None  # fire-and-forget like the Fake
+        append_call = mock_service.spreadsheets.return_value.values.return_value.append
+        append_call.assert_called_once()
+        _, kwargs = append_call.call_args
+        assert kwargs["spreadsheetId"] == "sheet-real-001"
+        assert kwargs["valueInputOption"] == "RAW"
+        # row values must include both fields
+        sent_values = kwargs["body"]["values"]
+        assert len(sent_values) == 1
+        assert "Acme" in sent_values[0]
+        assert "approve" in sent_values[0]
+
+    def test_read_rows_calls_sheets_values_get_and_returns_list_of_dicts(self, monkeypatch):
+        """read_rows must hit spreadsheets.values.get and zip header row to data rows."""
+        # Arrange
+        monkeypatch.delenv("SHEETS_VENDOR_TEMPLATE_ID", raising=False)
+        mock_service = self._build_mock_service()
+
+        with patch("orchestra_tprm.adapters.sheets.google_auth_default") as mock_auth, \
+             patch("orchestra_tprm.adapters.sheets.build") as mock_build:
+            mock_auth.return_value = (MagicMock(), "p")
+            mock_build.return_value = mock_service
+            adapter = SheetsAdapter()
+
+            # Act
+            rows = adapter.read_rows("sheet-real-002")
+
+        # Assert
+        get_call = mock_service.spreadsheets.return_value.values.return_value.get
+        get_call.assert_called_once()
+        _, kwargs = get_call.call_args
+        assert kwargs["spreadsheetId"] == "sheet-real-002"
+        # Mock returned header + 2 data rows
+        assert isinstance(rows, list)
+        assert rows == [{"col1": "v1", "col2": "v2"}, {"col1": "v3", "col2": "v4"}]
+
+    def test_read_rows_empty_sheet_returns_empty_list(self, monkeypatch):
+        """If the live API returns no 'values' key, read_rows must return []."""
+        # Arrange
+        monkeypatch.delenv("SHEETS_VENDOR_TEMPLATE_ID", raising=False)
+        mock_service = self._build_mock_service()
+        mock_service.spreadsheets.return_value.values.return_value.get.return_value.execute.return_value = {}
+
+        with patch("orchestra_tprm.adapters.sheets.google_auth_default") as mock_auth, \
+             patch("orchestra_tprm.adapters.sheets.build") as mock_build:
+            mock_auth.return_value = (MagicMock(), "p")
+            mock_build.return_value = mock_service
+            adapter = SheetsAdapter()
+
+            # Act
+            rows = adapter.read_rows("empty-sheet")
+
+        # Assert
+        assert rows == []
+
+    def test_populate_vendor_form_uses_template_id_and_batch_update(self, monkeypatch):
+        """populate_vendor_form must copy template + batchUpdate the placeholders.
+
+        Returns dict with sheet_id and url, matching the Protocol-shape contract
+        (URL + sheet_id) called out by the task spec.
+        """
+        # Arrange
+        monkeypatch.setenv("SHEETS_VENDOR_TEMPLATE_ID", "tmpl-xyz")
+        mock_service = self._build_mock_service()
+
+        with patch("orchestra_tprm.adapters.sheets.google_auth_default") as mock_auth, \
+             patch("orchestra_tprm.adapters.sheets.build") as mock_build:
+            mock_auth.return_value = (MagicMock(), "p")
+            mock_build.return_value = mock_service
+            adapter = SheetsAdapter()
+
+            # Act
+            result = adapter.populate_vendor_form(
+                "sheet-target-789",
+                {"vendor_name": "Acme Cloud", "verdict": "conditional-approve"},
+            )
+
+        # Assert
+        # Must batchUpdate the target sheet (not the template)
+        bu = mock_service.spreadsheets.return_value.batchUpdate
+        bu.assert_called_once()
+        _, kwargs = bu.call_args
+        assert kwargs["spreadsheetId"] == "sheet-target-789"
+        # batchUpdate body must contain at least one request
+        assert "requests" in kwargs["body"]
+        assert len(kwargs["body"]["requests"]) >= 1
+
+        # Return shape: URL + sheet_id
+        assert isinstance(result, dict)
+        assert result["sheet_id"] == "sheet-target-789"
+        assert "url" in result
+        assert "sheet-target-789" in result["url"]
+        assert result["url"].startswith("https://docs.google.com/spreadsheets/")
+
+    def test_populate_vendor_form_raises_when_template_id_missing(self, monkeypatch):
+        """If SHEETS_VENDOR_TEMPLATE_ID is unset, populate_vendor_form must raise RuntimeError."""
+        # Arrange
+        monkeypatch.delenv("SHEETS_VENDOR_TEMPLATE_ID", raising=False)
+        mock_service = self._build_mock_service()
+
+        with patch("orchestra_tprm.adapters.sheets.google_auth_default") as mock_auth, \
+             patch("orchestra_tprm.adapters.sheets.build") as mock_build:
+            mock_auth.return_value = (MagicMock(), "p")
+            mock_build.return_value = mock_service
+            adapter = SheetsAdapter()
+
+            # Act / Assert
+            with pytest.raises(RuntimeError, match="SHEETS_VENDOR_TEMPLATE_ID"):
+                adapter.populate_vendor_form("sheet-target", {"vendor_name": "X"})

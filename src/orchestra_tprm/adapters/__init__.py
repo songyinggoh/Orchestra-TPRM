@@ -7,7 +7,7 @@ from orchestra_tprm.adapters.docs import FakeDocsAdapter
 from orchestra_tprm.adapters.drive import FakeDriveAdapter
 from orchestra_tprm.adapters.gemini_files import GeminiFilesAdapter
 from orchestra_tprm.adapters.github import FakeGitHubAdapter, GitHubAdapter
-from orchestra_tprm.adapters.sheets import FakeSheetsAdapter
+from orchestra_tprm.adapters.sheets import FakeSheetsAdapter, SheetsAdapter
 
 
 @runtime_checkable
@@ -33,4 +33,5 @@ __all__ = [
     "GeminiFilesAdapter",
     "GitHubAdapter",
     "GitHubAdapterP",
+    "SheetsAdapter",
 ]
