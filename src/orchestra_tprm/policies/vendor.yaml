@@ -1,1 +1,41 @@
-criteria: []
+# Vendor onboarding policy pack
+# PolicyAgent reads this file; no mode literals appear in agent code.
+
+weights:
+  low: 1
+  medium: 3
+  high: 7
+  critical: 15
+
+verdict:
+  reject_if_any_critical: true   # any critical finding forces reject
+  reject_above: 30               # total score > 30 → reject
+  conditional_above: 10          # total score > 10 → conditional-approve
+  approve_at_or_below: 10        # total score ≤ 10 → approve
+
+# Qualitative gates — categories that must have zero open criticals
+critical_categories:
+  - soc2-cc6.1
+  - soc2-cc6.2
+  - data-breach
+  - export-control
+
+# Minimum compliance posture required for approval
+required_certifications:
+  - name: SOC 2 Type II
+    minimum_level: "Type II"
+    waivable: false
+
+# Contract clauses that must be present for approval
+required_contract_clauses:
+  - liability-cap-12-months
+  - data-processing-addendum
+  - right-to-audit
+  - breach-notification-72h
+
+# License types that are acceptable for vendor software
+required_license_types:
+  - commercial
+  - enterprise
+  - saas
+  - open-source-with-support
