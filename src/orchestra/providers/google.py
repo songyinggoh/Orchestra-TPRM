@@ -224,12 +224,21 @@ class GoogleProvider:
 
         # JSON mode via response_mime_type
         if output_type is not None:
+            from orchestra.providers._gemini_schema import (
+                GeminiSchemaError,
+                pydantic_to_gemini_schema,
+            )
+
             body["generationConfig"]["responseMimeType"] = "application/json"
             try:
-                schema = output_type.model_json_schema()
-                body["generationConfig"]["responseSchema"] = schema
-            except (AttributeError, Exception):
-                pass
+                body["generationConfig"]["responseSchema"] = (
+                    pydantic_to_gemini_schema(output_type)
+                )
+            except GeminiSchemaError as e:
+                raise ProviderError(
+                    f"Cannot convert {output_type.__name__} to Gemini schema: {e}.\n"
+                    "  Fix: simplify the model or fall back to text-mode JSON."
+                ) from e
 
         response_data = await self._request_with_retry(use_model, body)
         return self._parse_response(response_data, use_model)
