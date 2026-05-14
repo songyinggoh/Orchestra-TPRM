@@ -1,0 +1,7 @@
+subject_name: "Acme Cloud Analytics"
+docs:
+  - path: msa.pdf
+    kind: contract
+  - path: soc2.pdf
+    kind: security_attestation
+links_file: links.txt
