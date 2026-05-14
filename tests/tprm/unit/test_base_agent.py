@@ -5,8 +5,6 @@ when a SAFETY-flagged response yields no content; emits a filter-suppressed
 Finding if still empty."""
 from __future__ import annotations
 
-import pytest
-
 from orchestra.core.context import ExecutionContext
 from orchestra.core.types import LLMResponse
 from orchestra.testing import ScriptedLLM
@@ -29,7 +27,6 @@ class _DummyAgent(BaseTPRMAgent):
         ]
 
 
-@pytest.mark.asyncio
 async def test_safe_specialist_converts_exception_to_critical_finding():
     class _Boom(BaseTPRMAgent):
         name = "BoomAgent"
@@ -37,8 +34,10 @@ async def test_safe_specialist_converts_exception_to_critical_finding():
         async def _emit_findings(self, ctx):
             raise RuntimeError("kaboom")
 
+    llm = ScriptedLLM([])
     wrapped = safe_specialist(_Boom())
-    findings = await wrapped(ExecutionContext(provider=ScriptedLLM([])))
+    findings = await wrapped(ExecutionContext(provider=llm))
+    assert llm.call_count == 0
     assert len(findings) == 1
     assert findings[0].agent == "BoomAgent"
     assert findings[0].severity == "critical"
@@ -46,7 +45,6 @@ async def test_safe_specialist_converts_exception_to_critical_finding():
     assert "kaboom" in findings[0].summary
 
 
-@pytest.mark.asyncio
 async def test_safety_retry_succeeds_on_second_call():
     """First call returns SAFETY/empty; second call (with compliance prefix) returns content."""
     llm = ScriptedLLM(
@@ -59,13 +57,10 @@ async def test_safety_retry_succeeds_on_second_call():
     ctx = ExecutionContext(provider=llm)
     findings = await agent.run(ctx)
     assert findings[0].summary == "reviewed: liability cap"
-    assert len(llm._call_log) == 2
-    # Second call must have the compliance prefix
-    second = llm._call_log[1]["messages"][-1].content
-    assert "compliance review context" in second.lower()
+    assert llm.call_count == 2
+    llm.assert_prompt_received(1, r"compliance review context")
 
 
-@pytest.mark.asyncio
 async def test_safety_retry_emits_filter_suppressed_when_still_empty():
     llm = ScriptedLLM(
         [
