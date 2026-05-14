@@ -37,7 +37,7 @@ async def test_agent_loop_sets_name_on_tool_message():
     because AgentResult.messages only surfaces the final ASSISTANT message.
     """
     import orchestra.core.agent as agent_mod
-    from unittest.mock import patch, call as mcall
+    from unittest.mock import patch
     from orchestra.core.agent import BaseAgent
     from orchestra.core.context import ExecutionContext
     from orchestra.core.types import LLMResponse
