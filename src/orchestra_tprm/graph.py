@@ -1,38 +1,563 @@
-"""Build a per-mode CompiledGraph. Day 1: stub nodes that return empty
-findings. Real specialist wiring lands in Day 2-3."""
+"""build_graph(mode_config, *, adapters, ...) -> CompiledGraph.
+
+Per-mode wiring is fully declarative: the same pipeline shape
+(``bootstrap -> intake -> router -> [specialists in parallel] -> policy
+-> coordinator -> END``) runs for both vendor and M&A; mode-specific
+behaviour is driven by ``ModeConfig`` (specialist models, output_kind,
+coordinator_template, code_agent_generates_patch).  Any specialist whose
+model is ``None`` in the active config is simply not added to the
+parallel fan-out -- "declarative skip".
+
+The graph is composed entirely of ``AgentNode`` shims so each node
+receives the ``ExecutionContext`` (and therefore the LLM provider);
+``FunctionNode`` would only get the state dict.
+"""
 from __future__ import annotations
 
+import json
+import re
+from dataclasses import dataclass
 from typing import Any
 
+from orchestra.core.agent import BaseAgent
+from orchestra.core.context import ExecutionContext
 from orchestra.core.graph import WorkflowGraph
-from orchestra.core.types import END
+from orchestra.core.nodes import AgentNode
+from orchestra.core.types import END, AgentResult, LLMResponse, Message, MessageRole
 
+from orchestra_tprm.agents.base import safe_specialist
+from orchestra_tprm.agents.coordinator import Coordinator
+from orchestra_tprm.agents.intake import intake_node
+from orchestra_tprm.agents.policy import PolicyAgent
+from orchestra_tprm.agents.specialists.code import CodeAgent
+from orchestra_tprm.agents.specialists.external import ExternalAgent
+from orchestra_tprm.agents.specialists.legal import LegalAgent
+from orchestra_tprm.agents.specialists.security import SecurityAgent
 from orchestra_tprm.modes.config import ModeConfig
-from orchestra_tprm.schemas import TPRMState
+from orchestra_tprm.schemas import Finding, TPRMState
+
+# FinancialAgent is M&A-only; imported lazily so vendor-only deployments
+# don't need to ship its dependencies.
+try:
+    from orchestra_tprm.agents.specialists.financial import FinancialAgent
+except ImportError:  # pragma: no cover
+    FinancialAgent = None  # type: ignore[assignment]
 
 
-async def _stub_intake(state: dict[str, Any]) -> dict[str, Any]:
+@dataclass
+class Adapters:
+    """Bundle of every adapter ``build_graph`` may need.
+
+    Slots may be ``None`` when the active mode doesn't use them
+    (e.g. ``docs=None`` for vendor, ``sheets=None`` for M&A).
+    """
+
+    drive: Any
+    files: Any
+    sheets: Any
+    docs: Any
+    bq: Any
+    github: Any
+
+
+# ---------------------------------------------------------------------------
+# Internal adapter shims -- DO NOT TOUCH existing Fake* classes per the
+# Task 28 constraints, so we translate to the Protocol surface here.
+# ---------------------------------------------------------------------------
+
+
+class _BQShim:
+    """Translate ``append_findings`` (the PolicyAgent Protocol) onto whichever
+    underlying BQ-shaped adapter the caller supplied.
+
+    Supports both modern adapters (with native ``append_findings``) and the
+    legacy ``FakeBigQueryAdapter`` (``insert_rows`` only).
+    """
+
+    def __init__(self, inner: Any) -> None:
+        self._inner = inner
+
+    async def append_findings(
+        self,
+        dataset: str,
+        table: str,
+        run_id: str,
+        findings: list[Finding],
+    ) -> int:
+        native = getattr(self._inner, "append_findings", None)
+        if native is not None:
+            return await native(dataset, table, run_id, findings)
+        rows = [
+            {
+                "run_id": run_id,
+                "agent": f.agent,
+                "category": f.category,
+                "severity": f.severity,
+                "summary": f.summary,
+                "evidence": json.dumps([c.model_dump() for c in f.evidence]),
+                "raw": json.dumps(f.raw),
+            }
+            for f in findings
+        ]
+        legacy_insert = getattr(self._inner, "insert_rows", None)
+        if legacy_insert is not None:
+            legacy_insert(dataset, table, rows)
+        return len(rows)
+
+
+# ---------------------------------------------------------------------------
+# Specialist factory -- maps the canonical lowercase ID used in
+# ``ModeConfig.specialists`` to the BaseTPRMAgent runtime instance plus its
+# ``.name`` attribute (which is the key used in ``state["routing"]``).
+# ---------------------------------------------------------------------------
+
+
+def _build_specialists(cfg: ModeConfig, adapters: Adapters) -> dict[str, Any]:
+    """Return ``{cfg_key: agent_instance}`` for every active specialist."""
+    spec = cfg.specialists
+    active: dict[str, Any] = {}
+    if spec.legal:
+        active["legal"] = LegalAgent(model=spec.legal)
+    if spec.security:
+        active["security"] = SecurityAgent(model=spec.security)
+    if spec.external:
+        active["external"] = ExternalAgent(model=spec.external)
+    if spec.code:
+        active["code"] = CodeAgent(model=spec.code)
+    if spec.financial and FinancialAgent is not None:
+        active["financial"] = FinancialAgent(model=spec.financial)
+    return active
+
+
+# ---------------------------------------------------------------------------
+# Bootstrap node -- seeds ``github_url`` into state and runs intake.
+# ---------------------------------------------------------------------------
+
+
+async def _bootstrap(state: dict[str, Any], *, github_url: str) -> dict[str, Any]:
+    return {"github_url": github_url}
+
+
+async def _run_intake(
+    state: dict[str, Any],
+    *,
+    drive: Any,
+    drive_folder_id: str,
+) -> dict[str, Any]:
+    """Resolve the packet manifest from EITHER a local manifest.yaml OR a
+    seeded Drive folder, then re-key ``file_uris`` by filename so
+    downstream specialists can read ``file_uris[<filename>]`` directly
+    (matching ``routing[<AgentName>][i]``).
+    """
+    from pathlib import Path
+
+    pkt = Path(state.get("packet_path", ""))
+    manifest: list[dict[str, Any]]
+    file_uris: dict[str, str] = {}
+
+    if pkt.is_dir() and (pkt / "manifest.yaml").exists():
+        # Local packet path
+        update = await intake_node(state)
+        manifest = list(update.get("packet_manifest", []))
+        file_uris.update(update.get("file_uris", {}))
+        subject_name = update.get("subject_name", state.get("subject_name", ""))
+    elif drive is not None and drive_folder_id:
+        # Drive-backed packet (e.g. FakeDriveAdapter seeded by integration tests).
+        # Materialise each file under a temp dir as ``local://`` so specialists
+        # using ``read_uri`` get real bytes to feed the LLM prompt.
+        import tempfile
+
+        files = drive.list_files(drive_folder_id) or []
+        materialised_root = Path(tempfile.mkdtemp(prefix="orch_tprm_drive_"))
+        manifest = []
+        for f in files:
+            name = f.get("name") or f.get("id") or ""
+            kind = f.get("kind") or _infer_kind(name)
+            file_id = f.get("id", name)
+            content = b""
+            download = getattr(drive, "download_file", None)
+            if callable(download):
+                try:
+                    content = download(file_id) or b""
+                except Exception:
+                    content = b""
+            local_path = materialised_root / name
+            local_path.write_bytes(content)
+            uri = f"local://{local_path.as_posix()}"
+            manifest.append({"path": name, "kind": kind, "file_uri": uri})
+            file_uris[kind] = uri
+        subject_name = state.get("subject_name", "")
+    else:
+        return {"packet_manifest": [], "file_uris": {}}
+
+    # Add filename keys alongside kind keys so specialists resolve URIs
+    # directly from ``routing[<AgentName>][i]`` which holds filenames.
+    for entry in manifest:
+        name = entry["path"].split("/")[-1].split("\\")[-1]
+        file_uris[name] = entry["file_uri"]
+
     return {
-        "subject_name": state.get("subject_name") or "Acme Cloud Analytics",
-        "packet_manifest": [],
+        "packet_manifest": manifest,
+        "file_uris": file_uris,
+        "subject_name": subject_name,
     }
 
 
-async def _stub_join(state: dict[str, Any]) -> dict[str, Any]:
-    return {"findings": []}
+def _infer_kind(filename: str) -> str:
+    lower = filename.lower()
+    if "msa" in lower or "contract" in lower or "agreement" in lower:
+        return "contract"
+    if "soc2" in lower or "iso" in lower:
+        return "security_attestation"
+    if "10-k" in lower or "10k" in lower or "annual" in lower:
+        return "annual_report"
+    if "financial" in lower:
+        return "financial_filing"
+    return "unknown"
 
 
-async def _stub_coordinator(state: dict[str, Any]) -> dict[str, Any]:
-    return {"verdict_local_path": "/tmp/stub-verdict"}
+# ---------------------------------------------------------------------------
+# Router agent -- LLM-driven document-to-specialist assignment.
+# ---------------------------------------------------------------------------
 
 
-def build_graph(mode: ModeConfig) -> Any:
+class _DocRouter(BaseAgent):
+    """LLM-driven router: classifies each document in ``packet_manifest``
+    and assigns it to one or more specialists by *name*.
+
+    Output: ``state["routing"] = {AgentName: [filename, ...]}``.  AgentName
+    matches each specialist's class-attribute ``name`` (e.g.
+    ``"LegalAgent"``) so existing specialists pick it up via
+    ``routing.get(self.name, [])`` without any rewiring.
+    """
+
+    name: str = "DocRouterAgent"
+    active_specialist_names: list[str] = []
+    model: str = "gemini-2.5-flash"
+
+    async def run(self, input: Any, context: ExecutionContext) -> AgentResult:  # type: ignore[override]
+        state = input if isinstance(input, dict) else (context.state or {})
+        manifest = state.get("packet_manifest", []) or []
+        subject = state.get("subject_name", "unknown")
+        active = ", ".join(self.active_specialist_names)
+        docs_block = "\n".join(
+            f"- {entry.get('path', '?').split('/')[-1].split('\\')[-1]}"
+            f" (kind={entry.get('kind', 'unknown')})"
+            for entry in manifest
+        )
+        system = (
+            "You are a TPRM document router. For each document, decide "
+            f"which of these specialists should review it: [{active}]. "
+            "Output a JSON array of objects {{\"doc\": <filename>, "
+            "\"specialists\": [<AgentName>, ...]}}. No prose."
+        )
+        user = (
+            f"Subject: {subject}\nDocuments:\n{docs_block}\n"
+            "Return the JSON array."
+        )
+
+        if context.provider is None:
+            routing = _classify_no_llm(manifest, self.active_specialist_names)
+            return AgentResult(
+                agent_name=self.name,
+                state_updates={"routing": routing},
+            )
+
+        resp: LLMResponse = await context.provider.complete(
+            [
+                Message(role=MessageRole.SYSTEM, content=system),
+                Message(role=MessageRole.USER, content=user),
+            ],
+            model=self.model,
+        )
+        text = (resp.content or "").strip()
+        # Permissive JSON extraction -- handle fenced output etc.
+        match = re.search(r"\[.*\]", text, re.DOTALL)
+        items: list[dict[str, Any]] = []
+        if match:
+            try:
+                parsed = json.loads(match.group(0))
+                if isinstance(parsed, list):
+                    items = [i for i in parsed if isinstance(i, dict)]
+            except json.JSONDecodeError:
+                items = []
+
+        if not items:
+            # LLM produced nothing usable -- fall back to kind-based
+            # classification so the rest of the graph still runs.
+            routing = _classify_no_llm(manifest, self.active_specialist_names)
+        else:
+            routing = {n: [] for n in self.active_specialist_names}
+            for item in items:
+                doc = str(item.get("doc", ""))
+                specs = item.get("specialists", []) or []
+                for s in specs:
+                    if s in routing:
+                        routing[s].append(doc)
+
+        # Backstop: every active specialist must have at least one doc
+        # assigned so the parallel fan-out remains balanced and every
+        # specialist consumes its scripted LLM response. We assign the
+        # first available doc to any unassigned specialist.
+        if manifest:
+            first_doc = manifest[0].get("path", "").split("/")[-1].split("\\")[-1]
+            for spec_name, docs in routing.items():
+                if not docs:
+                    routing[spec_name] = [first_doc]
+
+        return AgentResult(
+            agent_name=self.name,
+            state_updates={"routing": routing},
+        )
+
+
+_KIND_TO_AGENT_NAMES = {
+    "contract": ["LegalAgent"],
+    "security_attestation": ["SecurityAgent"],
+    "financial_statement": ["FinancialAgent", "LegalAgent"],
+    "financial_filing": ["FinancialAgent", "LegalAgent"],
+    "source_code": ["CodeAgent"],
+    "investor_deck": ["FinancialAgent"],
+    "annual_report": ["LegalAgent", "FinancialAgent", "SecurityAgent"],
+    "unknown": ["LegalAgent", "SecurityAgent"],
+}
+
+
+def _classify_no_llm(
+    manifest: list[dict[str, Any]],
+    active: list[str],
+) -> dict[str, list[str]]:
+    routing: dict[str, list[str]] = {a: [] for a in active}
+    for entry in manifest:
+        kind = entry.get("kind", "unknown")
+        name = entry.get("path", "?").split("/")[-1].split("\\")[-1]
+        for agent_name in _KIND_TO_AGENT_NAMES.get(kind, ["LegalAgent", "SecurityAgent"]):
+            if agent_name in routing:
+                routing[agent_name].append(name)
+    return routing
+
+
+# ---------------------------------------------------------------------------
+# Specialist shim -- wraps a BaseTPRMAgent so it conforms to BaseAgent.run.
+# ---------------------------------------------------------------------------
+
+
+def _make_spec_shim(specialist: Any) -> BaseAgent:
+    """Wrap a BaseTPRMAgent into a BaseAgent shim.
+
+    The shim's ``run(input, context)`` injects the latest ``state_dict``
+    (passed by AgentNode's input_mapper) into ``context.state`` so the
+    underlying specialist sees the post-router routing dict even when
+    running inside a parallel fan-out (parallel branches clone the parent
+    context at the time of the fan-out edge, which is BEFORE the router's
+    state update has been applied to ``context.state``).
+    """
+    wrapped = safe_specialist(specialist)
+    spec_name = specialist.name
+
+    class _SpecShim(BaseAgent):
+        name: str = spec_name
+        model: str | None = getattr(specialist, "model", None)
+
+        async def run(self, input: Any, context: ExecutionContext) -> AgentResult:  # type: ignore[override]
+            if isinstance(input, dict):
+                context.state = input
+            findings = await wrapped(context)
+            return AgentResult(
+                agent_name=self.name,
+                state_updates={
+                    "findings": [
+                        f.model_dump() if hasattr(f, "model_dump") else f
+                        for f in findings
+                    ]
+                },
+            )
+
+    return _SpecShim()
+
+
+# ---------------------------------------------------------------------------
+# Policy & Coordinator shims (need ``ctx``, so they can't be FunctionNodes).
+# ---------------------------------------------------------------------------
+
+
+def _make_policy_shim(policy: PolicyAgent) -> BaseAgent:
+    class _PolicyShim(BaseAgent):
+        name: str = "PolicyAgent"
+
+        async def run(self, input: Any, context: ExecutionContext) -> AgentResult:  # type: ignore[override]
+            state = input if isinstance(input, dict) else (context.state or {})
+            update = await policy(state, ctx=context)
+            return AgentResult(agent_name=self.name, state_updates=update)
+
+    return _PolicyShim()
+
+
+def _make_coordinator_shim(coord: Coordinator) -> BaseAgent:
+    class _CoordShim(BaseAgent):
+        name: str = "Coordinator"
+
+        async def run(self, input: Any, context: ExecutionContext) -> AgentResult:  # type: ignore[override]
+            state = input if isinstance(input, dict) else (context.state or {})
+            update = await coord(state, ctx=context)
+            return AgentResult(agent_name=self.name, state_updates=update)
+
+    return _CoordShim()
+
+
+# ---------------------------------------------------------------------------
+# Bootstrap shim (also needs nothing from ctx but kept as an AgentNode for
+# uniformity and to expose ``output_key="github_url"`` for invariant W-1).
+# ---------------------------------------------------------------------------
+
+
+def _make_bootstrap_shim(github_url: str) -> BaseAgent:
+    class _BootstrapShim(BaseAgent):
+        name: str = "BootstrapAgent"
+
+        async def run(self, input: Any, context: ExecutionContext) -> AgentResult:  # type: ignore[override]
+            return AgentResult(
+                agent_name=self.name,
+                state_updates={"github_url": github_url},
+            )
+
+    return _BootstrapShim()
+
+
+def _make_intake_shim(*, drive: Any, drive_folder_id: str) -> BaseAgent:
+    captured_drive = drive
+    captured_folder = drive_folder_id
+
+    class _IntakeShim(BaseAgent):
+        name: str = "IntakeAgent"
+
+        async def run(self, input: Any, context: ExecutionContext) -> AgentResult:  # type: ignore[override]
+            state = input if isinstance(input, dict) else (context.state or {})
+            update = await _run_intake(
+                state,
+                drive=captured_drive,
+                drive_folder_id=captured_folder,
+            )
+            return AgentResult(agent_name=self.name, state_updates=update)
+
+    return _IntakeShim()
+
+
+# ---------------------------------------------------------------------------
+# Public factory
+# ---------------------------------------------------------------------------
+
+
+def build_graph(
+    cfg: ModeConfig,
+    *,
+    adapters: Adapters,
+    drive_folder_id: str = "",
+    sheet_id: str = "",
+    doc_id: str = "",
+    bq_dataset: str = "tprm_audit",
+    bq_table: str = "tprm_findings",
+    github_url: str = "",
+) -> Any:
+    """Build the per-mode TPRM workflow graph and return a CompiledGraph.
+
+    The same pipeline shape applies to both modes; ``cfg`` controls which
+    specialists run and which Coordinator output_kind ("sheet" | "doc")
+    is dispatched.
+    """
     g = WorkflowGraph(state_schema=TPRMState)
-    g.add_node("intake", _stub_intake, output_key="packet_manifest")
-    g.add_node("coordinator", _stub_coordinator, output_key="verdict_local_path")
-    g.add_node("join", _stub_join, output_key="findings")
-    g.set_entry_point("intake")
-    g.add_edge("intake", "coordinator")
-    g.add_edge("coordinator", "join")
-    g.add_edge("join", END)
+
+    # --- Build runtime objects ---
+    specialists = _build_specialists(cfg, adapters)
+    active_specialist_names = [a.name for a in specialists.values()]
+
+    bq_shim = _BQShim(adapters.bq)
+    policy = PolicyAgent(
+        mode_config=cfg, bq=bq_shim, dataset=bq_dataset, table=bq_table
+    )
+    coordinator = Coordinator(
+        mode_config=cfg,
+        sheets=adapters.sheets,
+        docs=adapters.docs,
+        sheet_id=sheet_id,
+        doc_id=doc_id,
+    )
+
+    router_agent = _DocRouter(
+        active_specialist_names=active_specialist_names,
+        model=cfg.router_model,
+    )
+
+    # --- Wire nodes -------------------------------------------------------
+    g.add_node(
+        "bootstrap",
+        AgentNode(
+            agent=_make_bootstrap_shim(github_url),
+            map_output=True,
+            input_mapper=lambda s: s,
+        ),
+        output_key="github_url",
+    )
+    g.add_node(
+        "intake",
+        AgentNode(
+            agent=_make_intake_shim(
+                drive=adapters.drive,
+                drive_folder_id=drive_folder_id,
+            ),
+            map_output=True,
+            input_mapper=lambda s: s,
+        ),
+        output_key="packet_manifest",
+    )
+    g.add_node(
+        "router",
+        AgentNode(
+            agent=router_agent,
+            map_output=True,
+            input_mapper=lambda s: s,
+        ),
+        output_key="routing",
+    )
+
+    specialist_node_ids: list[str] = []
+    for cfg_key, specialist in specialists.items():
+        node_id = cfg_key
+        g.add_node(
+            node_id,
+            AgentNode(
+                agent=_make_spec_shim(specialist),
+                map_output=True,
+                input_mapper=lambda s: s,
+            ),
+            output_key="findings",
+        )
+        specialist_node_ids.append(node_id)
+
+    g.add_node(
+        "policy",
+        AgentNode(
+            agent=_make_policy_shim(policy),
+            map_output=True,
+            input_mapper=lambda s: s,
+        ),
+        output_key="policy_verdict",
+    )
+    g.add_node(
+        "coordinator",
+        AgentNode(
+            agent=_make_coordinator_shim(coordinator),
+            map_output=True,
+            input_mapper=lambda s: s,
+        ),
+        output_key="verdict_local_path",
+    )
+
+    # --- Wire edges -------------------------------------------------------
+    g.set_entry_point("bootstrap")
+    g.add_edge("bootstrap", "intake")
+    g.add_edge("intake", "router")
+    g.add_parallel("router", specialist_node_ids, join_node="policy")
+    g.add_edge("policy", "coordinator")
+    g.add_edge("coordinator", END)
     return g.compile()

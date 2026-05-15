@@ -41,6 +41,7 @@ class TPRMState(WorkflowState):
     mode: Literal["vendor", "ma"] = "vendor"
     subject_name: str = ""
     packet_path: str = ""
+    github_url: str = ""
 
     # Intake outputs
     file_uris: Annotated[dict[str, str], merge_dict] = {}

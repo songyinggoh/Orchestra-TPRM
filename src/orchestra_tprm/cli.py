@@ -1,8 +1,15 @@
-"""orchestra-tprm CLI — single entry point for both vendor and M&A modes."""
+"""orchestra-tprm CLI -- single entry point for both vendor and M&A modes.
+
+Builds the per-mode adapter bundle from the ``--local`` flag (Fake* adapters
+for offline runs; real Drive/Sheets/Docs/BQ/GitHub clients otherwise) and
+hands them to :func:`build_graph`. The resulting CompiledGraph is then
+executed via the standard Orchestra runner.
+"""
 from __future__ import annotations
 
 import asyncio
 import json
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -10,10 +17,70 @@ import typer
 import yaml
 
 from orchestra.core.runner import run as run_graph
-from orchestra_tprm.graph import build_graph
+from orchestra.testing import ScriptedLLM
+from orchestra.core.types import LLMResponse
+
+from orchestra_tprm.adapters.bigquery import BigQueryAdapter, FakeBigQueryAdapter
+from orchestra_tprm.adapters.docs import DocsAdapter, FakeDocsAdapter
+from orchestra_tprm.adapters.drive import DriveAdapter, FakeDriveAdapter
+from orchestra_tprm.adapters.gemini_files import (
+    GeminiFilesAdapter,
+    GeminiFilesAdapterReal,
+)
+from orchestra_tprm.adapters.github import FakeGitHubAdapter, GitHubAdapter
+from orchestra_tprm.adapters.sheets import FakeSheetsAdapter, SheetsAdapter
+from orchestra_tprm.graph import Adapters, build_graph
 from orchestra_tprm.modes.config import load_mode
 
 app = typer.Typer(add_completion=False, help="Multi-agent TPRM framework.")
+
+
+def _load_env() -> dict[str, str]:
+    """Best-effort .env loader (does not overwrite os.environ)."""
+    out = dict(os.environ)
+    p = Path(".env")
+    if p.exists():
+        for line in p.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            out.setdefault(k.strip(), v.strip())
+    return out
+
+
+def _stub_local_provider() -> ScriptedLLM:
+    """Local-mode fallback provider when no real LLM is configured.
+
+    Returns a large pool of empty/no-op JSON responses so the graph can
+    complete deterministically without making any network calls. Used by
+    smoke tests and ``--local`` runs that don't have GOOGLE_API_KEY set.
+    """
+    pool = [
+        LLMResponse(content="[]"),
+        LLMResponse(content="{}"),
+        LLMResponse(content=""),
+    ] * 20
+    return ScriptedLLM(pool)
+
+
+def _resolve_provider(env: dict[str, str], replay: Optional[Path]):
+    """Pick the best available LLM provider for the current run.
+
+    Order: ``--replay`` file > GOOGLE_API_KEY > local stub.
+    """
+    if replay is not None:
+        try:
+            from orchestra.providers.replay import ReplayProvider
+
+            return ReplayProvider.from_jsonl(str(replay))
+        except ImportError:
+            pass
+    if env.get("GOOGLE_API_KEY"):
+        from orchestra.providers.google import GoogleProvider
+
+        return GoogleProvider(api_key=env["GOOGLE_API_KEY"])
+    return _stub_local_provider()
 
 
 @app.command()
@@ -26,28 +93,90 @@ def main(
     replay: Optional[Path] = typer.Option(None, "--replay"),
     dashboard: bool = typer.Option(True, "--dashboard/--no-dashboard"),
 ) -> None:
+    env = _load_env()
     cfg = load_mode(mode)
+
     manifest_path = packet / "manifest.yaml"
-    manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+    manifest = (
+        yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+        if manifest_path.exists()
+        else {}
+    )
+
+    # Extract optional github_url from links.txt (first non-empty line).
+    github_url = ""
+    links_rel = manifest.get("links_file", "links.txt")
+    links_path = packet / links_rel
+    if links_path.exists():
+        for line in links_path.read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if stripped:
+                github_url = stripped
+                break
+
+    if local:
+        provider = _resolve_provider(env, replay)
+        drive = FakeDriveAdapter()
+        files = GeminiFilesAdapter()
+        sheets = FakeSheetsAdapter()
+        docs = FakeDocsAdapter()
+        bq = FakeBigQueryAdapter()
+        github = FakeGitHubAdapter()
+        drive_folder_id = ""
+        sheet_id = env.get("SHEETS_VENDOR_TEMPLATE_ID", "VENDOR-LOCAL")
+        doc_id = env.get("DOCS_MA_TEMPLATE_ID", "")
+    else:
+        from orchestra.providers.google import GoogleProvider
+
+        provider = GoogleProvider(api_key=env.get("GOOGLE_API_KEY", ""))
+        drive = DriveAdapter()
+        files = GeminiFilesAdapterReal(provider=provider)
+        sheets = SheetsAdapter()
+        docs = DocsAdapter()
+        bq = BigQueryAdapter(project=env.get("GOOGLE_CLOUD_PROJECT"))
+        github = GitHubAdapter(token=env.get("GITHUB_TOKEN"))
+        drive_folder_id = (
+            env.get("DRIVE_VENDOR_FOLDER_ID", "")
+            if cfg.name == "vendor"
+            else env.get("DRIVE_MA_FOLDER_ID", "")
+        )
+        sheet_id = env.get("SHEETS_VENDOR_TEMPLATE_ID", "")
+        doc_id = env.get("DOCS_MA_TEMPLATE_ID", "")
+
+    adapters = Adapters(
+        drive=drive, files=files, sheets=sheets, docs=docs, bq=bq, github=github
+    )
+    graph = build_graph(
+        cfg,
+        adapters=adapters,
+        drive_folder_id=drive_folder_id,
+        sheet_id=sheet_id,
+        doc_id=doc_id,
+        bq_dataset=env.get("BQ_DATASET", "tprm_audit"),
+        bq_table=env.get("BQ_TABLE", "tprm_findings"),
+        github_url=github_url,
+    )
+
     initial: dict = {
         "mode": cfg.name,
         "subject_name": manifest.get("subject_name", ""),
         "packet_path": str(packet),
     }
-    graph = build_graph(cfg)
     result = asyncio.run(
-        run_graph(graph, input=initial, persist=False)
+        run_graph(graph, input=initial, provider=provider, persist=False)
     )
-    # result.state is a plain dict[str, Any]
     state = result.state
     payload = {
         "mode": state.get("mode"),
         "subject_name": state.get("subject_name"),
+        "policy_verdict": state.get("policy_verdict"),
+        "risk_score": state.get("risk_score"),
+        "verdict_doc_id": state.get("verdict_doc_id"),
+        "verdict_local_path": state.get("verdict_local_path", ""),
         "findings": [
             f if isinstance(f, dict) else f.model_dump()
             for f in state.get("findings", [])
         ],
-        "verdict_local_path": state.get("verdict_local_path", ""),
     }
     out.write_text(json.dumps(payload, indent=2, default=str))
     typer.echo(f"Wrote {out}")
