@@ -391,6 +391,41 @@ The submission is successful if:
 
 Judging window starts within 7 days of deadline. The Cloud Run deployment must remain stable and Gemini quota must remain available until at least 2026-05-26.
 
+## 12. Decisions Log
+
+Canonical record of every locked decision in this spec. When the implementation plan or the other instance references a decision, they cite by ID (e.g. "per D-07 in the spec").
+
+| ID | Decision | Rationale | Section |
+|---|---|---|---|
+| D-01 | Submission tells dual story: Orchestra (framework) + TPRM (proof) | Judges score both Application of Technology and Business Value; one layer alone leaves points on the table | §1 |
+| D-02 | Track 2 — Google AI Studio / Gemini | Hackathon track requirement; `GoogleProvider` already wired to `generativelanguage.googleapis.com` (not Vertex AI) | §1 |
+| D-03 | Default model `gemini-2.5-flash` across all specialists | Free tier, low latency, structured-output support; current TPRM agents already use it | §3 |
+| D-04 | Hosted on a single Cloud Run service | Dockerfile already exists; GCP-native; scales to zero; supports long-running LLM requests | §3.1 |
+| D-05 | `min-instances=1` for the 7-day judging window | Eliminates 3-5s cold start that hurts first-impression for judges; ~$3-5/day cost | §3.1 |
+| D-06 | Demo URL is open access (no auth wall) | Zero friction for judges; Cloud Run concurrency + Gemini rate-limits act as soft throttle | §3.1 |
+| D-07 | Dedicated runner SA: `orchestra-tprm-runner@<project>.iam` | Best practice, scoped IAM, distinguishable from default compute SA | §3.1 |
+| D-08 | GCP API auth via ADC (no JSON key in Secret Manager) | Cloud Run picks up the SA automatically; one fewer secret to rotate | §3.1 |
+| D-09 | `GOOGLE_API_KEY` (AI Studio) stored as Cloud Run secret | Distinct from SA — AI Studio billing is separate from GCP | §3.1 |
+| D-10 | Vendor packet uploads → GCS bucket `orchestra-tprm-uploads-<hash>` | Survives Cloud Run restarts; reproducible across instances | §3.1 |
+| D-11 | Run/event persistence: BigQuery `orchestra_tprm.runs` + `events` | Already in stack; sub-500ms reads for historical lookup; free tier covers all demo traffic | §3.1 |
+| D-12 | Sheet/Doc sharing: anyone-with-link, view-only | Fastest for judges; URL surfaced in run completion event | §3.1 |
+| D-13 | Three new agents in scope: Risk Scoring, Remediation, ESG | Closes "so what?" gap (score), business-value gap (remediation), and adds topical ESG dimension | §5 |
+| D-14 | Risk Scoring is hybrid: deterministic math + LLM rationale | Reproducible scores + explainable narrative; same input → same score | §5.1 |
+| D-15 | Remediation Agent skipped when verdict is approve with no ≥medium findings | Saves a Gemini call when there's nothing to remediate | §5.2 |
+| D-16 | ESG becomes the 6th specialist (parallel with the other 5) | Mirrors existing specialist pattern; minimal architectural change | §5.3 |
+| D-17 | `Finding.id: str` field added (UUID4 default factory) | Required for Remediation Agent to reference findings; no per-specialist change needed | §5.2 |
+| D-18 | Both vendors (HashiCorp + Acme) selectable on landing page | Shows dual-mode design intent (vendor + M&A) | §6 |
+| D-19 | Video and cover image use HashiCorp vendor mode only | Most validated path (33 findings on real packet) | §6 |
+| D-20 | Hybrid live-with-replay-fallback for both vendors | Single mechanism covers Gemini 429s, CR-04 not landing, and network errors | §9 |
+| D-21 | Replay format: ReplayProvider JSONL (records LLM calls; graph re-executes) | Uses existing framework code; agent-code changes work on replay without re-capture | §8.1 |
+| D-22 | Replay JSONL committed to `examples/tprm/<vendor>/replay.jsonl` | Versioned in git; no GCS read-path dependency | §8.1 |
+| D-23 | Title: "Orchestra — Multi-Agent Third-Party Risk Review on Google Gemini" | Foregrounds framework + Track 2 requirement; "TPRM" jargon avoided | §7.1 |
+| D-24 | Long description tone: measured / technical | Safer for enterprise audience; defers competitive claims to demo | §7.2 |
+| D-25 | Cover image: 16:9 split panel — dashboard left, agent graph right | Shows both the product and the architecture in one image | §7.1 |
+| D-26 | Slide deck: 15 slides | Doubles as standalone artifact; 2-3 sentences per slide per lablab guidance | §7.3 |
+| D-27 | Bug-fix ownership split with other instance | This instance: CR-02, CR-03. Other instance: CR-01, CR-04, CR-05 (they touch files it owns) | §8 |
+| D-28 | No new TPRM modes beyond vendor + M&A; no multi-tenant auth; no mobile UI | Scope cut to fit 3-day budget | §4.3 |
+
 ---
 
-**End of design.** Awaiting user review before invoking `writing-plans` skill.
+**End of design.** Spec is locked. Implementation plan to follow via `writing-plans` skill.
