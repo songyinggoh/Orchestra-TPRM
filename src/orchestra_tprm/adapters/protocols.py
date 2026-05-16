@@ -20,6 +20,9 @@ class BigQueryAdapterP(Protocol):
         table: str,
         run_id: str,
         findings: list[Finding],
+        *,
+        mode: str = "",
+        subject: str = "",
     ) -> int:
         """Append findings to a BQ table. Returns number of rows written."""
         ...

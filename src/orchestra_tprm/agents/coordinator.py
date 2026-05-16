@@ -21,6 +21,7 @@ from typing import Any
 from orchestra.core.context import ExecutionContext
 from orchestra.core.types import Message, MessageRole
 
+from orchestra_tprm.agents.base import strip_json_fences
 from orchestra_tprm.modes.config import ModeConfig
 from orchestra_tprm.schemas import Finding
 
@@ -31,7 +32,7 @@ def _ma_sections_from_text(text: str) -> dict[str, str]:
     Accepts either a JSON object (preferred) or a free-text fallback in
     which case the entire body becomes the Executive Summary.
     """
-    raw = (text or "").strip()
+    raw = strip_json_fences((text or "").strip())
     if raw.startswith("{"):
         try:
             parsed = json.loads(raw)

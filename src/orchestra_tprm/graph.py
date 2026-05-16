@@ -83,10 +83,13 @@ class _BQShim:
         table: str,
         run_id: str,
         findings: list[Finding],
+        *,
+        mode: str = "",
+        subject: str = "",
     ) -> int:
         native = getattr(self._inner, "append_findings", None)
         if native is not None:
-            return await native(dataset, table, run_id, findings)
+            return await native(dataset, table, run_id, findings, mode=mode, subject=subject)
         rows = [
             {
                 "run_id": run_id,

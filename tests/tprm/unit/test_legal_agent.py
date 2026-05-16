@@ -69,8 +69,9 @@ async def test_legal_skips_missing_uri():
 
 
 @pytest.mark.asyncio
-async def test_legal_survives_malformed_json():
-    """If the LLM returns non-JSON text, LegalAgent returns [] (no crash)."""
+async def test_legal_emits_parse_error_on_malformed_json():
+    """If the LLM returns non-JSON text, LegalAgent emits a parse-error
+    Finding (was silent-skip pre-S4; aligned with Code+External pattern)."""
     agent = LegalAgent()
     llm = ScriptedLLM([LLMResponse(content="not json at all")])
     ctx = ExecutionContext(provider=llm)
@@ -80,7 +81,11 @@ async def test_legal_survives_malformed_json():
         "routing": {"LegalAgent": ["contract.pdf"]},
     }
     findings = await agent.run(ctx)
-    assert findings == []
+    assert len(findings) == 1
+    assert findings[0].category == "parse-error"
+    assert findings[0].severity == "high"
+    assert findings[0].agent == "LegalAgent"
+    assert findings[0].evidence[0].file_id == "contract.pdf"
 
 
 @pytest.mark.asyncio

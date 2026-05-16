@@ -68,7 +68,14 @@ class PolicyAgent:
         run_id: str = (
             getattr(ctx, "run_id", "unknown") if ctx is not None else "unknown"
         )
-        await self._bq.append_findings(self._dataset, self._table, run_id, coerced)
+        await self._bq.append_findings(
+            self._dataset,
+            self._table,
+            run_id,
+            coerced,
+            mode=state.get("mode", ""),
+            subject=state.get("subject_name", ""),
+        )
 
         return {"risk_score": float(score), "policy_verdict": verdict}
 

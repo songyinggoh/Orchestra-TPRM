@@ -11,7 +11,7 @@ import json
 from orchestra.core.context import ExecutionContext
 
 from orchestra_tprm.agents._uri import read_uri
-from orchestra_tprm.agents.base import BaseTPRMAgent
+from orchestra_tprm.agents.base import BaseTPRMAgent, strip_json_fences
 from orchestra_tprm.schemas import Finding
 
 _SYSTEM = """You are a software supply-chain security analyst.
@@ -26,7 +26,7 @@ Output ONLY the JSON object. No prose, no Markdown fences.
 
 def _tech_debt_to_severity(tech_debt: str) -> str:
     """Map tech_debt value to a Finding severity string."""
-    mapping = {"low": "low", "medium": "medium", "high": "high"}
+    mapping = {"low": "low", "medium": "medium", "high": "high", "critical": "critical"}
     return mapping.get(tech_debt, "medium")
 
 
@@ -60,7 +60,10 @@ class CodeAgent(BaseTPRMAgent):
             if uri.startswith("https://"):
                 attachments.append({"file_uri": uri, "mime_type": "text/plain"})
             else:
-                content = read_uri(uri)
+                try:
+                    content = read_uri(uri)
+                except (FileNotFoundError, OSError, UnicodeDecodeError):
+                    content = ""
                 if content:
                     text_chunks.append(f"=== {doc_id} ===\n{content}")
 
@@ -85,7 +88,7 @@ class CodeAgent(BaseTPRMAgent):
             return []
 
         try:
-            data = json.loads(text)
+            data = json.loads(strip_json_fences(text))
         except json.JSONDecodeError:
             return [
                 Finding(
@@ -106,11 +109,16 @@ class CodeAgent(BaseTPRMAgent):
                 )
             ]
 
+        sev = (
+            "critical"
+            if data.get("patch_needed")
+            else _tech_debt_to_severity(data.get("tech_debt", "low"))
+        )
         return [
             Finding(
                 agent=self.name,
                 category="code-risk",
-                severity=_tech_debt_to_severity(data.get("tech_debt", "low")),
+                severity=sev,
                 summary=data.get("summary", ""),
                 raw=data,
             )

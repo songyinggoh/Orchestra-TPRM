@@ -4,7 +4,7 @@ from __future__ import annotations
 from enum import IntEnum
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, BeforeValidator, Field
 
 from orchestra.core.state import WorkflowState, merge_list, merge_dict
 
@@ -18,6 +18,17 @@ class Severity(IntEnum):
 
 SeverityLiteral = Literal["low", "medium", "high", "critical"]
 
+_VALID_SEVERITIES = {"low", "medium", "high", "critical"}
+
+
+def _coerce_severity(v: object) -> str:
+    """Normalise LLM-returned severity strings before Pydantic validates the Literal."""
+    s = str(v).lower() if v is not None else "medium"
+    return s if s in _VALID_SEVERITIES else "medium"
+
+
+_NormalizedSeverity = Annotated[SeverityLiteral, BeforeValidator(_coerce_severity)]
+
 
 class Citation(BaseModel):
     file_id: str
@@ -30,7 +41,7 @@ class Citation(BaseModel):
 class Finding(BaseModel):
     agent: str
     category: str
-    severity: SeverityLiteral
+    severity: _NormalizedSeverity
     evidence: list[Citation] = Field(default_factory=list)
     summary: str
     raw: dict[str, Any] = Field(default_factory=dict)

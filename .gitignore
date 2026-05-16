@@ -63,3 +63,9 @@ GEMINI.md
 VERIFICATION.md
 docs/competitive-analysis-v2.md
 *.code-workspace
+
+# Ctxo local cache + index (never committed)
+.ctxo/
+
+# Local demo verdict outputs (per-run artifacts)
+verdict*.json

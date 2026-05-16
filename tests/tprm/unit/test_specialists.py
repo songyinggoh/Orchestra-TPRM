@@ -234,7 +234,8 @@ async def test_code_agent_tech_debt_severity_mapping(tmp_path: Path) -> None:
         )
 
 
-async def test_code_agent_unknown_tech_debt_defaults_to_medium(tmp_path: Path) -> None:
+async def test_code_agent_unknown_tech_debt_with_patch_needed_is_critical(tmp_path: Path) -> None:
+    """patch_needed=True overrides tech_debt mapping — even an unknown tech_debt level becomes critical."""
     repo = tmp_path / "repo.txt"
     repo.write_text("Repo.")
 
@@ -244,6 +245,29 @@ async def test_code_agent_unknown_tech_debt_defaults_to_medium(tmp_path: Path) -
             "tech_debt": "very-high",
             "license": None,
             "patch_needed": True,
+        }))
+    ])
+    agent = CodeAgent()
+    ctx = _make_ctx(
+        llm,
+        file_uris={"repo.txt": f"local://{repo}"},
+        routing={"CodeAgent": ["repo.txt"]},
+    )
+    findings = await agent.run(ctx)
+    assert findings[0].severity == "critical"
+
+
+async def test_code_agent_unknown_tech_debt_no_patch_defaults_to_medium(tmp_path: Path) -> None:
+    """Unknown tech_debt without patch_needed falls back to medium."""
+    repo = tmp_path / "repo.txt"
+    repo.write_text("Repo.")
+
+    llm = ScriptedLLM([
+        LLMResponse(content=json.dumps({
+            "summary": "Unclear tech debt level",
+            "tech_debt": "very-high",
+            "license": None,
+            "patch_needed": False,
         }))
     ])
     agent = CodeAgent()
@@ -402,8 +426,9 @@ async def test_external_agent_empty_routing_still_calls_llm() -> None:
 # Parse error handling — critical Finding on malformed JSON
 # ---------------------------------------------------------------------------
 
-async def test_legal_parse_error_returns_empty(tmp_path: Path) -> None:
-    """LegalAgent silently skips non-JSON (matches existing test_legal_agent.py behaviour)."""
+async def test_legal_parse_error_emits_finding(tmp_path: Path) -> None:
+    """LegalAgent emits a parse-error Finding on non-JSON (S4: aligned
+    with Code+External pattern, was silent-skip pre-S4)."""
     doc = tmp_path / "contract.txt"
     doc.write_text("Contract text.")
 
@@ -415,11 +440,14 @@ async def test_legal_parse_error_returns_empty(tmp_path: Path) -> None:
         routing={"LegalAgent": ["contract.txt"]},
     )
     findings = await agent.run(ctx)
-    assert findings == []
+    assert len(findings) == 1
+    assert findings[0].category == "parse-error"
+    assert findings[0].agent == "LegalAgent"
 
 
-async def test_security_parse_error_returns_empty(tmp_path: Path) -> None:
-    """SecurityAgent silently skips non-JSON (matches test_security_agent.py behaviour)."""
+async def test_security_parse_error_emits_finding(tmp_path: Path) -> None:
+    """SecurityAgent emits a parse-error Finding on non-JSON (S4: aligned
+    with Code+External pattern, was silent-skip pre-S4)."""
     doc = tmp_path / "soc2.txt"
     doc.write_text("SOC2 text.")
 
@@ -431,7 +459,9 @@ async def test_security_parse_error_returns_empty(tmp_path: Path) -> None:
         routing={"SecurityAgent": ["soc2.txt"]},
     )
     findings = await agent.run(ctx)
-    assert findings == []
+    assert len(findings) == 1
+    assert findings[0].category == "parse-error"
+    assert findings[0].agent == "SecurityAgent"
 
 
 async def test_specialist_parse_error_returns_critical_finding(tmp_path: Path) -> None:

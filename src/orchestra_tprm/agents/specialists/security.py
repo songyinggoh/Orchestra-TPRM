@@ -5,7 +5,8 @@ import json
 
 from orchestra.core.context import ExecutionContext
 
-from orchestra_tprm.agents.base import BaseTPRMAgent
+from orchestra_tprm.agents._uri import read_uri
+from orchestra_tprm.agents.base import BaseTPRMAgent, strip_json_fences
 from orchestra_tprm.schemas import Citation, Finding
 
 _SYSTEM = """You are a SOC2 / ISO27001 auditor. For each notable control in the
@@ -39,22 +40,47 @@ class SecurityAgent(BaseTPRMAgent):
             uri = file_uris.get(doc_id)
             if not uri:
                 continue
-            attachments = (
-                [{"file_uri": uri, "mime_type": "application/pdf"}]
-                if uri.startswith("http")
-                else None
-            )
+
+            attachments: list[dict] | None = None
+            body = ""
+            if uri.startswith("https://"):
+                attachments = [{"file_uri": uri, "mime_type": "application/pdf"}]
+            else:
+                # local:// — inline text. Tolerate read failures so
+                # unit tests with synthetic paths still pass.
+                try:
+                    content = read_uri(uri)
+                except (FileNotFoundError, OSError, UnicodeDecodeError):
+                    content = ""
+                if content:
+                    body = f"=== {doc_id} ===\n{content}\n"
+
             prompt = (
                 f"Subject: {ctx.state.get('subject_name', 'unknown')}\n"
                 f"Document: {doc_id}\n"
-                "Audit the attached SOC2/ISO27001 report and emit the JSON array."
+                f"{body}"
+                "Audit the SOC2/ISO27001 report above and emit the JSON array. "
+                "Use `citation_page` if the document has page numbers; "
+                "otherwise set it to null and rely on `control_id`."
             )
             text = await self._call_llm(
                 ctx, prompt=prompt, system=_SYSTEM, attachments=attachments
             )
+            stripped = strip_json_fences(text)
+            if not stripped:
+                continue
             try:
-                items = json.loads(text or "[]")
+                items = json.loads(stripped)
             except json.JSONDecodeError:
+                all_findings.append(
+                    Finding(
+                        agent=self.name,
+                        category="parse-error",
+                        severity="high",
+                        summary=f"SecurityAgent: LLM returned non-JSON for {doc_id}: {text[:120]}",
+                        evidence=[Citation(file_id=doc_id)],
+                    )
+                )
                 continue
             for item in items:
                 ctrl = item.get("control_id", "unknown")

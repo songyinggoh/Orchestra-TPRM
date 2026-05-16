@@ -11,7 +11,7 @@ import json
 from orchestra.core.context import ExecutionContext
 
 from orchestra_tprm.agents._uri import read_uri
-from orchestra_tprm.agents.base import BaseTPRMAgent
+from orchestra_tprm.agents.base import BaseTPRMAgent, strip_json_fences
 from orchestra_tprm.schemas import Citation, Finding
 
 _SYSTEM = """You are a senior M&A due-diligence analyst.
@@ -61,8 +61,13 @@ class FinancialAgent(BaseTPRMAgent):
                 ]
                 body = ""
             else:
-                content = read_uri(uri)
+                try:
+                    content = read_uri(uri)
+                except (FileNotFoundError, OSError, UnicodeDecodeError):
+                    content = ""
                 attachments = None
+                if not content:
+                    continue
                 body = content
 
             prompt = (
@@ -83,7 +88,7 @@ class FinancialAgent(BaseTPRMAgent):
                 continue
 
             try:
-                items = json.loads(text)
+                items = json.loads(strip_json_fences(text))
             except json.JSONDecodeError:
                 all_findings.append(
                     Finding(

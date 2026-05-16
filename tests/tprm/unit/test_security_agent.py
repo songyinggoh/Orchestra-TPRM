@@ -71,8 +71,9 @@ async def test_security_skips_missing_uri():
 
 
 @pytest.mark.asyncio
-async def test_security_malformed_json_skipped():
-    """If LLM returns non-JSON, the doc is skipped without raising."""
+async def test_security_emits_parse_error_on_malformed_json():
+    """If LLM returns non-JSON, SecurityAgent emits a parse-error Finding
+    (was silent-skip pre-S4; aligned with Code+External pattern)."""
     agent = SecurityAgent()
     llm = ScriptedLLM([LLMResponse(content="Sorry, I can't help with that.")])
     ctx = ExecutionContext(provider=llm)
@@ -82,7 +83,11 @@ async def test_security_malformed_json_skipped():
         "routing": {"SecurityAgent": ["soc2.pdf"]},
     }
     findings = await agent.run(ctx)
-    assert findings == []
+    assert len(findings) == 1
+    assert findings[0].category == "parse-error"
+    assert findings[0].severity == "high"
+    assert findings[0].agent == "SecurityAgent"
+    assert findings[0].evidence[0].file_id == "soc2.pdf"
 
 
 @pytest.mark.asyncio

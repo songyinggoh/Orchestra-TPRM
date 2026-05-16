@@ -10,7 +10,7 @@ import json
 from orchestra.core.context import ExecutionContext
 
 from orchestra_tprm.agents._uri import read_uri
-from orchestra_tprm.agents.base import BaseTPRMAgent
+from orchestra_tprm.agents.base import BaseTPRMAgent, strip_json_fences
 from orchestra_tprm.schemas import Citation, Finding
 
 _SYSTEM = """You are a sanctions and adverse-media compliance officer.
@@ -85,7 +85,7 @@ class ExternalAgent(BaseTPRMAgent):
             return []
 
         try:
-            items = json.loads(text)
+            items = json.loads(strip_json_fences(text))
         except json.JSONDecodeError:
             return [
                 Finding(

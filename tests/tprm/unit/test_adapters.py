@@ -1547,7 +1547,7 @@ class TestBigQueryAdapterReal:
     bigquery.Client are mocked."""
 
     def test_findings_to_rows_includes_run_id_and_dates(self):
-        """_findings_to_rows produces rows with run_id, run_date, ingested_at."""
+        """_findings_to_rows produces rows with run_id, run_date, created_at."""
         # Arrange
         f = Finding(
             agent="LegalAgent",
@@ -1567,7 +1567,7 @@ class TestBigQueryAdapterReal:
         assert rows[0]["agent"] == "LegalAgent"
         assert rows[0]["severity"] == "high"
         assert "run_date" in rows[0]
-        assert "ingested_at" in rows[0]
+        assert "created_at" in rows[0]
 
     def test_findings_to_rows_serializes_evidence_and_raw_as_json(self):
         """evidence and raw must be JSON strings (BQ JSON columns accept strings)."""

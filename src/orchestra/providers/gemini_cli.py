@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
+import re
 import shutil
 from collections.abc import AsyncIterator
 from typing import Any
@@ -39,6 +41,23 @@ from orchestra.providers._cli_common import (
     strip_tool_calls,
 )
 
+_logger = logging.getLogger(__name__)
+
+# Module-level gate that serializes Gemini CLI invocations across all
+# instances. Size=1 because the Gemini per-minute subscription quota is
+# easily exhausted by even two concurrent calls. Critical section is the
+# subprocess invocation only — prompt assembly and response parsing run
+# outside the gate.
+_GEMINI_CLI_GATE = asyncio.Semaphore(1)
+
+# Detects the "quota exhausted" message the CLI surfaces in stderr.
+# Capture group 1 is the reset-after hint (seconds) when present.
+_QUOTA_RX = re.compile(
+    r"exhausted your capacity|quota will reset after (\d+)|rate.?limit|\b429\b",
+    re.IGNORECASE,
+)
+_DEFAULT_QUOTA_BACKOFF_SECONDS = 45
+
 
 class GeminiCliProvider:
     """LLM provider that delegates to the ``gemini`` CLI.
@@ -55,7 +74,7 @@ class GeminiCliProvider:
     def __init__(
         self,
         model: str = "gemini-2.5-flash",
-        timeout: float = 120.0,
+        timeout: float = 240.0,
         gemini_path: str | None = None,
     ) -> None:
         self._default_model = model
@@ -87,41 +106,73 @@ class GeminiCliProvider:
         if tools:
             system = inject_tools_into_system(system, tools)
 
-        cmd: list[str] = [
-            self._gemini_path,
-            "--model",
-            use_model,
-        ]
-        # Pass system prompt via stdin to prevent argument injection
-        # via crafted system prompt content.
+        # Build prompt payload; --prompt " " activates headless/non-interactive
+        # mode (required by Gemini CLI >= 0.42); actual content is piped via stdin
+        # (the CLI appends --prompt value after stdin, so a single space is harmless).
         stdin_payload = prompt
         if system:
             stdin_payload = f"[system]\n{system}\n\n[user]\n{prompt}"
 
-        try:
-            async with managed_proc(*cmd) as proc:
-                try:
-                    stdout, stderr = await asyncio.wait_for(
-                        proc.communicate(stdin_payload.encode()),
-                        timeout=self._timeout,
-                    )
-                except TimeoutError:
-                    raise ProviderError(
-                        f"gemini CLI timed out after {self._timeout}s. "
-                        "Increase timeout= or simplify the prompt."
-                    ) from None
-        except FileNotFoundError:
-            raise ProviderUnavailableError(
-                "The 'gemini' CLI was not found on PATH.\n"
-                "  Fix: Install the Gemini CLI (https://github.com/google-gemini/gemini-cli) "
-                "or pass gemini_path= to GeminiCliProvider."
-            ) from None
+        cmd: list[str] = [
+            self._gemini_path,
+            "--model",
+            use_model,
+            "--prompt",
+            " ",  # activates headless mode; real content arrives via stdin
+            "--yolo",  # suppress interactive confirmation prompts (e.g. MCP auth)
+        ]
 
-        if proc.returncode != 0:
-            err_text = stderr.decode(errors="replace").strip()
-            raise ProviderError(
-                f"gemini CLI exited with code {proc.returncode}.\n  stderr: {err_text[:500]}"
-            )
+        # Quota-aware retry loop. Each attempt acquires the global gate
+        # only for the subprocess call itself; the backoff sleep happens
+        # OUTSIDE the gate so other callers can interleave during the wait.
+        last_err: ProviderError | None = None
+        stdout: bytes = b""
+        for attempt in range(2):  # 1 initial try + 1 retry on rate-limit
+            try:
+                async with _GEMINI_CLI_GATE:
+                    _logger.debug("gemini_cli_gate_acquired attempt=%s", attempt)
+                    async with managed_proc(*cmd) as proc:
+                        try:
+                            stdout, stderr = await asyncio.wait_for(
+                                proc.communicate(stdin_payload.encode()),
+                                timeout=self._timeout,
+                            )
+                        except TimeoutError:
+                            raise ProviderError(
+                                f"gemini CLI timed out after {self._timeout}s. "
+                                "Increase timeout= or simplify the prompt."
+                            ) from None
+                    if proc.returncode != 0:
+                        err_text = stderr.decode(errors="replace").strip()
+                        raise ProviderError(
+                            f"gemini CLI exited with code {proc.returncode}.\n"
+                            f"  stderr: {err_text[:500]}"
+                        )
+            except FileNotFoundError:
+                raise ProviderUnavailableError(
+                    "The 'gemini' CLI was not found on PATH.\n"
+                    "  Fix: Install the Gemini CLI (https://github.com/google-gemini/gemini-cli) "
+                    "or pass gemini_path= to GeminiCliProvider."
+                ) from None
+            except ProviderError as e:
+                last_err = e
+                hint = _QUOTA_RX.search(str(e))
+                if hint is None or attempt == 1:
+                    raise
+                secs = hint.group(1)
+                sleep_s = int(secs) + 3 if secs else _DEFAULT_QUOTA_BACKOFF_SECONDS
+                _logger.warning(
+                    "gemini_quota_backoff sleep=%ss attempt=%s hint=%s",
+                    sleep_s, attempt, secs or "default",
+                )
+                await asyncio.sleep(sleep_s)
+                continue
+            # Success — break out of retry loop.
+            break
+        else:
+            # Loop exhausted without success
+            if last_err is not None:
+                raise last_err
 
         raw_output = stdout.decode(errors="replace").strip()
 
@@ -154,15 +205,18 @@ class GeminiCliProvider:
         if tools:
             system = inject_tools_into_system(system, tools)
 
+        stdin_payload = prompt
+        if system:
+            stdin_payload = f"[system]\n{system}\n\n[user]\n{prompt}"
+
         cmd: list[str] = [
             self._gemini_path,
             "--model",
             use_model,
+            "--prompt",
+            " ",  # activates headless mode
+            "--yolo",  # suppress interactive confirmation prompts
         ]
-        # Pass system prompt via stdin to prevent argument injection.
-        stdin_payload = prompt
-        if system:
-            stdin_payload = f"[system]\n{system}\n\n[user]\n{prompt}"
 
         try:
             async with managed_proc(*cmd) as proc:

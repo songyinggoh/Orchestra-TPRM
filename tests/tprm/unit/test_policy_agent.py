@@ -30,6 +30,9 @@ class PolicyFakeBQ:
         table: str,
         run_id: str,
         findings: list[Finding],
+        *,
+        mode: str = "",
+        subject: str = "",
     ) -> int:
         self.rows.extend(findings)
         return len(findings)

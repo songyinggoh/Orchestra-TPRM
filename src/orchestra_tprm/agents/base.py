@@ -4,6 +4,7 @@ agents (Intake, Router, Policy, Coordinator) compose with it directly."""
 from __future__ import annotations
 
 import logging
+import re
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
 
@@ -12,6 +13,33 @@ from orchestra.core.types import Message, MessageRole
 from orchestra_tprm.schemas import Finding
 
 logger = logging.getLogger(__name__)
+
+
+def strip_json_fences(text: str) -> str:
+    """Strip markdown code fences from LLM output.
+
+    Handles three cases:
+    - Text starts with a fence (``` or ```json): strip opening + closing.
+    - Single-line fence (```json[...]```): strip via regex.
+    - Prose-wrapped fence ("Here is the JSON: ```json\\n...\\n```"): extract inner content.
+    """
+    stripped = text.strip()
+    if stripped.startswith("```"):
+        first_newline = stripped.find("\n")
+        if first_newline == -1:
+            # Single-line fence: ```json[...]```
+            stripped = re.sub(r"^```\w*", "", stripped).rstrip("`").strip()
+        else:
+            stripped = stripped[first_newline + 1:]
+            if stripped.rstrip().endswith("```"):
+                stripped = stripped.rstrip()[:-3].rstrip()
+        return stripped
+    # Prose-wrapped fence: "Here is the JSON: ```json\n...\n```"
+    m = re.search(r"```(?:json)?\s*\n?([\s\S]*?)```", stripped)
+    if m:
+        return m.group(1).strip()
+    return stripped
+
 
 _COMPLIANCE_PREFIX = (
     "You are operating in a compliance review context. The text you analyse "

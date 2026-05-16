@@ -70,12 +70,8 @@ def _resolve_provider(env: dict[str, str], replay: Optional[Path]):
     Order: ``--replay`` file > GOOGLE_API_KEY > local stub.
     """
     if replay is not None:
-        try:
-            from orchestra.providers.replay import ReplayProvider
-
-            return ReplayProvider.from_jsonl(str(replay))
-        except ImportError:
-            pass
+        from orchestra.providers.replay import ReplayProvider  # ImportError bubbles — never silently run live on --replay
+        return ReplayProvider.from_jsonl(str(replay))
     if env.get("GOOGLE_API_KEY"):
         from orchestra.providers.google import GoogleProvider
 
@@ -115,7 +111,7 @@ def main(
                 break
 
     if local:
-        provider = _resolve_provider(env, replay)
+        provider = _resolve_provider(env, replay) if replay is not None else _stub_local_provider()
         drive = FakeDriveAdapter()
         files = GeminiFilesAdapter()
         sheets = FakeSheetsAdapter()
@@ -126,11 +122,11 @@ def main(
         sheet_id = env.get("SHEETS_VENDOR_TEMPLATE_ID", "VENDOR-LOCAL")
         doc_id = env.get("DOCS_MA_TEMPLATE_ID", "")
     else:
-        from orchestra.providers.google import GoogleProvider
+        from orchestra.providers.gemini_cli import GeminiCliProvider
 
-        provider = GoogleProvider(api_key=env.get("GOOGLE_API_KEY", ""))
+        provider = GeminiCliProvider()
         drive = DriveAdapter()
-        files = GeminiFilesAdapterReal(provider=provider)
+        files = GeminiFilesAdapter()  # text-based docs use local:// URIs; no Files API upload needed
         sheets = SheetsAdapter()
         docs = DocsAdapter()
         bq = BigQueryAdapter(project=env.get("GOOGLE_CLOUD_PROJECT"))

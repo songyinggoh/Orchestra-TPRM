@@ -1,0 +1,62 @@
+INDEPENDENT SERVICE AUDITOR'S REPORT
+SOC 2 Type II — Acme Cloud Analytics, Inc.
+Period: July 1, 2024 – December 31, 2024
+
+SCOPE
+Trust Services Criteria: Security (CC), Availability (A1)
+Note: Confidentiality, Processing Integrity, and Privacy criteria are OUT OF SCOPE for this engagement.
+
+AUDITOR OPINION
+In our opinion, the description of Acme Cloud Analytics' Cloud Analytics Platform is fairly presented and
+the controls were suitably designed and operating effectively throughout the period, with the exceptions
+noted below.
+
+SYSTEM DESCRIPTION
+Acme Cloud Analytics provides a multi-tenant SaaS analytics platform. Customer data is stored in
+AWS us-east-1 with backup to AWS us-west-2.
+
+CONTROL EXCEPTIONS AND DEVIATIONS
+
+CC6.1 — Logical Access Controls
+EXCEPTION: During the review period, 3 of 25 sampled user accounts retained elevated administrative
+privileges for 47 days after the associated employee's departure date. Root cause: manual provisioning
+process lacked automated deprovisioning triggers.
+MANAGEMENT RESPONSE: Vendor committed to implementing automated deprovisioning by Q2 2025.
+Remediation not yet verified by auditor.
+
+CC6.7 — Transmission of Data
+EXCEPTION: Audit testing identified that 2 internal API endpoints transmit data using TLS 1.1,
+which is below current minimum security standards (TLS 1.2+). Vendor acknowledged these endpoints
+serve legacy customers and have not been upgraded.
+
+CC7.2 — Monitoring of System Components
+NOTE: Vendor's security information and event management (SIEM) system does not ingest logs from
+third-party subprocessor environments. Coverage gap exists for incidents originating at subprocessors.
+
+A1.2 — Environmental Protections
+No exceptions noted. Vendor's primary and backup data centers demonstrated adequate environmental
+controls including redundant power, HVAC, and fire suppression systems.
+
+CC9.2 — Incident Response
+EXCEPTION: During the period, one security incident (unauthorized access to a development environment)
+was not escalated per Vendor's documented incident response procedure. The incident was contained
+within 8 hours but was not reported to affected customers as required under the incident response policy.
+
+ENCRYPTION AT REST
+Customer data is encrypted at rest using AES-128. Note: Vendor's published policy states AES-256;
+auditor confirmed that legacy storage tiers use AES-128 encryption.
+
+PENETRATION TESTING
+Annual penetration test was conducted by an internal team. No independent third-party penetration
+test was performed during the audit period.
+
+SUBPROCESSORS REVIEWED IN SCOPE
+- AWS (infrastructure hosting)
+- Twilio SendGrid (email notifications)
+- Datadog (monitoring — partial scope only)
+
+KEY RISK INDICATORS
+- Mean time to patch critical vulnerabilities: 23 days (Vendor target: 14 days)
+- Failed login attempt threshold: not configured for API authentication endpoints
+
+Prepared by: [Audit Firm] | Report Date: February 15, 2025

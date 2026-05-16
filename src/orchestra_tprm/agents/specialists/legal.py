@@ -14,7 +14,8 @@ import json
 
 from orchestra.core.context import ExecutionContext
 
-from orchestra_tprm.agents.base import BaseTPRMAgent
+from orchestra_tprm.agents._uri import read_uri
+from orchestra_tprm.agents.base import BaseTPRMAgent, strip_json_fences
 from orchestra_tprm.schemas import Citation, Finding
 
 _SYSTEM = """You are a senior commercial-contracts attorney auditing a third-party agreement.
@@ -58,17 +59,29 @@ class LegalAgent(BaseTPRMAgent):
             if not uri:
                 continue
 
-            # Only attach multimodal file references for real Gemini Files API URIs
-            attachments = (
-                [{"file_uri": uri, "mime_type": "application/pdf"}]
-                if uri.startswith("https://")
-                else None
-            )
+            attachments: list[dict] | None = None
+            body = ""
+            if uri.startswith("https://"):
+                # Gemini Files API URI — multimodal attach
+                attachments = [{"file_uri": uri, "mime_type": "application/pdf"}]
+            else:
+                # local:// URI — inline the text in the prompt.
+                # FileNotFoundError tolerated so ScriptedLLM unit tests
+                # with synthetic paths keep working in prompt-only mode.
+                try:
+                    content = read_uri(uri)
+                except (FileNotFoundError, OSError, UnicodeDecodeError):
+                    content = ""
+                if content:
+                    body = f"=== {doc_id} ===\n{content}\n"
 
             prompt = (
                 f"Subject: {ctx.state.get('subject_name', 'unknown')}\n"
                 f"Document: {doc_id}\n"
-                "Audit the attached contract. Output the JSON array as instructed."
+                f"{body}"
+                "Audit the contract above. Output the JSON array as instructed. "
+                "Use `citation_page` if the document has page numbers; "
+                "otherwise set it to null and rely on `clause_id`."
             )
 
             text = await self._call_llm(
@@ -78,8 +91,17 @@ class LegalAgent(BaseTPRMAgent):
                 continue
 
             try:
-                items = json.loads(text)
+                items = json.loads(strip_json_fences(text))
             except json.JSONDecodeError:
+                all_findings.append(
+                    Finding(
+                        agent=self.name,
+                        category="parse-error",
+                        severity="high",
+                        summary=f"LegalAgent: LLM returned non-JSON for {doc_id}: {text[:120]}",
+                        evidence=[Citation(file_id=doc_id)],
+                    )
+                )
                 continue
 
             for item in items:

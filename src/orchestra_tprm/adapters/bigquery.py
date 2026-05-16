@@ -46,7 +46,13 @@ def _import_bigquery() -> Any:
     return bigquery
 
 
-def _findings_to_rows(run_id: str, findings: list[Finding]) -> list[dict[str, Any]]:
+def _findings_to_rows(
+    run_id: str,
+    findings: list[Finding],
+    *,
+    mode: str = "",
+    subject: str = "",
+) -> list[dict[str, Any]]:
     """Serialise ``Finding`` objects to BQ-ready row dicts.
 
     ``evidence`` and ``raw`` are JSON-encoded strings — BQ ``JSON`` columns
@@ -61,13 +67,15 @@ def _findings_to_rows(run_id: str, findings: list[Finding]) -> list[dict[str, An
             {
                 "run_id": run_id,
                 "run_date": now.date().isoformat(),
-                "ingested_at": now.isoformat(),
+                "mode": mode,
+                "subject": subject,
                 "agent": f.agent,
                 "category": f.category,
                 "severity": f.severity,
                 "summary": f.summary,
                 "evidence": json.dumps([c.model_dump() for c in f.evidence]),
                 "raw": json.dumps(f.raw),
+                "created_at": now.isoformat(),
             }
         )
     return out
@@ -171,9 +179,12 @@ class BigQueryAdapter:
         table: str,
         run_id: str,
         findings: list[Finding],
+        *,
+        mode: str = "",
+        subject: str = "",
     ) -> int:
         """Convenience: serialise findings → single load job. Returns row count."""
-        rows = _findings_to_rows(run_id, findings)
+        rows = _findings_to_rows(run_id, findings, mode=mode, subject=subject)
         return await self._load_rows(dataset, table, rows)
 
 
