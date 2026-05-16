@@ -17,7 +17,7 @@ The submission story is dual-layered:
 - **Orchestra** = the platform — production-grade multi-agent infrastructure
 - **TPRM** = the proof — a concrete enterprise use case that ships
 
-Judges score on Presentation, Business Value, Application of Technology, and Originality. We win by demonstrating that Orchestra makes real enterprise AI applications *fast to build*, and that TPRM is a $50K+/year category killer.
+Judges score on Presentation, Business Value, Application of Technology, and Originality. Our strategy is to demonstrate that Orchestra makes enterprise-grade multi-agent applications fast to build, and that the TPRM application is a working example of that — not a slideware concept.
 
 ## 2. Goal
 
@@ -38,27 +38,38 @@ The demo must execute a live vendor review during the judging window using real 
 ```
                         ┌──────────────────────────────────┐
                         │       Cloud Run (single svc)      │
+                        │       SA: orchestra-tprm-runner   │
                         │                                   │
    judges browser ─────►│  FastAPI (orchestra-tprm)         │
                         │   ├── /api/v1/runs        (POST)  │
                         │   ├── /api/v1/runs/.../stream     │
                         │   ├── /api/v1/tprm/scorecard      │
+                        │   ├── /api/v1/tprm/upload (POST)  │
                         │   └── /  (static React build)     │
                         │                                   │
                         └──────────────────────────────────┘
                                        │
-                  ┌────────────────────┼─────────────────────┐
-                  ▼                    ▼                     ▼
-        generativelanguage      bigquery.googleapis    sheets/docs.googleapis
-        .googleapis.com         .com                   .com
-        (Gemini 2.5 Flash)      (findings table)       (sheet + doc output)
-        AI Studio — free        Cloud Run SA           Cloud Run SA
+                ┌──────────┬───────────┼────────────┬─────────────┐
+                ▼          ▼           ▼            ▼             ▼
+        generativelanguage  bigquery   sheets/docs   gcs       (no auth wall)
+        .googleapis.com     .google    .googleapis   bucket    open access
+        Gemini 2.5 Flash    BQ writes  link-share    uploads   (rate-limited
+        AI Studio — free    via SA     write via SA  via SA     by Cloud Run)
 ```
+
+**Decisions:**
+- **Public access:** open URL, no auth wall. Cloud Run concurrency limits + Gemini rate-limits act as soft throttle.
+- **Cloud Run service account:** dedicated `orchestra-tprm-runner@<project>.iam.gserviceaccount.com` (not default compute SA).
+- **GCP API auth from Cloud Run:** Application Default Credentials picks up the service account automatically. No JSON key in Secret Manager.
+- **`GOOGLE_API_KEY` (AI Studio):** stored as a Cloud Run secret, mounted as an env var. Distinct from the SA — AI Studio billing is separate.
+- **Sheet sharing:** every Sheet/Doc created by the Coordinator has link-sharing enabled (view-only, anyone-with-link). URL returned in the run completion event.
+- **Vendor packet uploads:** `POST /api/v1/tprm/upload` writes the file to `gs://orchestra-tprm-uploads-<project-hash>/{run_id}/{filename}` via the runner SA. Packets persist across instance restarts.
+- **Run/event persistence:** BigQuery dataset `orchestra_tprm` with tables `runs` (one row per run, status + metadata) and `events` (one row per SSE event, sequence-ordered, append-only). Streaming inserts via the runner SA. Live state during a run comes from in-process memory streamed over SSE; BigQuery is the after-the-fact record so judges can re-open a previous run via `GET /api/v1/runs/{run_id}` which reads from BQ. Read pattern is `SELECT * FROM events WHERE run_id = ? ORDER BY sequence` — sub-500ms even cold. Free tier covers all demo traffic (streaming insert cost ~$0.00001/run).
 
 - Single Cloud Run service serves FastAPI + static React build
 - Gemini API via `GOOGLE_API_KEY` (Cloud Run secret) — AI Studio billing, free tier, no GCP credits consumed
 - BigQuery + Sheets + Docs via Cloud Run service account with IAM roles
-- Scales to zero between requests; cold start ~3–5s
+- **`min-instances=1` for the 7-day judging window** to eliminate cold start; revert to scale-to-zero after 2026-05-26 (cost during window: ~$3-5/day)
 
 ### 3.2 Agent graph (TPRM, vendor mode)
 
@@ -170,6 +181,8 @@ class RiskDriver(BaseModel):
 
 **Position in graph:** After `policy`. Skipped if `policy` verdict is `approve` with no medium-or-higher findings.
 
+**Schema prerequisite:** The `Finding` model in `src/orchestra_tprm/schemas.py` gains a stable `id: str` field generated as a UUID4 at construction (`Field(default_factory=lambda: uuid.uuid4().hex)`). All 5 existing specialists already construct `Finding(...)` via `safe_specialist`; no per-specialist change is needed because the default factory fires automatically. The `RemediationItem.finding_id` field references this stable ID, enabling the React UI to render a Findings ↔ Remediation join.
+
 **Input:** All findings of severity ≥ medium, plus active mode (vendor / M&A) and policy verdict.
 
 **Process:** Single LLM call (Gemini 2.5 Flash) with structured output. Mode-aware prompt: vendor mode frames remediation as "vendor must fix X before signing"; M&A mode frames as "negotiate price reduction, escrow, or rep-and-warranty insurance for X".
@@ -213,9 +226,11 @@ class RemediationPlan(BaseModel):
 
 ## 6. Demo Flow (judges' journey)
 
-1. Judge opens `https://orchestra-tprm.run.app` → sees TPRM landing page
-2. Picks **HashiCorp** from example chooser (or uploads their own packet)
-3. Selects **Vendor Onboarding** mode (default)
+The landing page exposes **both** examples (HashiCorp vendor onboarding, Acme M&A due diligence) so judges can run either. The video, slide deck, and cover image all use the HashiCorp vendor path because it is the most validated (33 findings already produced in a green E2E run) and lowest-risk to reproduce live.
+
+1. Judge opens `https://orchestra-tprm.run.app` → sees TPRM landing page with two example tiles (HashiCorp vendor / Acme M&A) and a custom upload option
+2. Picks **HashiCorp** tile (pre-selected by default) — or clicks the Acme M&A tile to see the alternate flow
+3. Mode is auto-set by the chosen tile (vendor for HashiCorp, M&A for Acme)
 4. Clicks **Run Review** → POST to `/api/v1/runs`, returns `run_id`
 5. Page navigates to `/tprm/runs/:runId` → React opens SSE stream
 6. Live updates flow in: intake → doc_router → active specialists firing in parallel (5 for vendor mode: Legal, Security, Code, External, ESG; 6 for M&A mode: adds Financial). NodeCard chips light up as each completes
@@ -234,35 +249,42 @@ End-to-end: ~45–60 seconds. Total Gemini cost per demo: ~$0.05.
 
 | Field | Value (draft) |
 |---|---|
-| Title | **Orchestra TPRM — Multi-Agent Vendor Risk Review** |
-| Short description (≤255 chars) | Production-grade multi-agent framework + a TPRM application that replaces $50K/year tools. Six Gemini-powered specialists score vendors in 60s. Built on Orchestra, deployed on Cloud Run. |
+| Title | **Orchestra — Multi-Agent Third-Party Risk Review on Google Gemini** |
+| Short description (≤255 chars) | A Python multi-agent framework and an enterprise risk-review application built on it. Six Gemini 2.5 Flash specialists review vendor packets in parallel and produce a scored verdict, remediation plan, and Google Sheet report on Cloud Run. |
 | Long description (≥100 words) | See §7.2 below |
 | Technology tags | `gemini`, `google-ai-studio`, `python`, `fastapi`, `react`, `cloud-run`, `bigquery`, `multi-agent`, `langgraph-alternative` |
 | Category tags | `enterprise`, `risk-management`, `compliance`, `agents` |
-| Cover image | 16:9 hero showing risk dashboard with HashiCorp scorecard. PNG. |
+| Cover image | 16:9 PNG, split panel: left half is the live React dashboard (HashiCorp run mid-execution, risk score + colour-coded findings), right half is the agent graph diagram (6 specialists fanning out to risk_score → policy → remediation → coordinator). Orchestra wordmark top-left, "On Google Gemini" line bottom-right. |
 
-### 7.2 Long description (draft, to be refined)
+### 7.2 Long description (measured / technical tone)
 
-Third-party risk management is a $5B enterprise category dominated by OneTrust, ProcessUnity, and Vanta — tools that charge $50K-$500K per year for what is fundamentally a document-review workflow.
+Orchestra is a Python multi-agent orchestration framework for production deployment on Google Cloud. It provides typed state with reducer functions for concurrent updates, compile-time graph validation, a scripted-LLM testing harness, and native support for the Google AI Studio API alongside six other LLM backends.
 
-Orchestra TPRM replaces them with a six-specialist agent system powered by Google Gemini 2.5 Flash. Upload a vendor packet (MSA, SOC 2 report, security questionnaire, financial statements, ESG disclosures, GitHub URL) and six specialists run in parallel — Legal, Security, Code, External, Financial, ESG — extracting structured findings against a configurable policy pack. A Risk Scoring agent rolls findings into a single 0–100 score, a Policy agent issues an approve / conditional / reject verdict, and a Remediation agent generates a prioritized action plan with specific contractual leverage points.
+Orchestra Third-Party Risk Review is an enterprise application built on the framework. It processes vendor documentation — master service agreements, SOC 2 reports, security questionnaires, financial statements, ESG disclosures, and source repositories — through a six-specialist agent pipeline powered by Gemini 2.5 Flash. Each specialist extracts structured findings against a configurable policy pack: Legal reviews contract clauses, Security checks SOC 2 control coverage, Code analyzes source repositories for risk, External assesses news and reputation signals, Financial evaluates business continuity indicators, and ESG measures environmental, social, and governance disclosures.
 
-The system runs both vendor onboarding mode and M&A due diligence mode. Outputs land in Google Sheets and Docs that procurement, legal, and deal teams already use.
+After the specialists join, a Risk Scoring agent aggregates findings into a 0–100 score with a traffic-light verdict, a Policy agent evaluates the verdict against the active policy pack, and a Remediation agent generates a prioritized action plan with specific contractual leverage points. A Coordinator writes the final report to a Google Sheet (vendor onboarding mode) or a Google Doc (M&A due diligence mode).
 
-It is built on Orchestra, a Python multi-agent framework with first-class support for the Google AI Studio API, BigQuery, Cloud Run, and the rest of the GCP stack — and it ships today on a public Cloud Run deployment with a live React dashboard streaming events over SSE.
+The system runs on a single Cloud Run service serving a FastAPI backend and a React dashboard. The dashboard streams agent execution events over Server-Sent Events, allowing reviewers to watch the multi-agent pipeline complete in real time. BigQuery stores findings for cross-vendor analytics. The deployment uses the Google AI Studio free tier for inference and does not consume GCP credits.
 
-### 7.3 Slide deck outline (10 slides, ~3 min spoken)
+### 7.3 Slide deck outline (15 slides, ~4 min spoken)
 
-1. **Cover** — Orchestra TPRM logo, hackathon, team, date
-2. **The problem** — TPRM tools cost $50K-$500K/year, take weeks per vendor, brittle workflows
-3. **The solution** — multi-agent review in 60s on Gemini Flash
-4. **Live demo** — annotated screenshot of dashboard with risk score, findings, remediation
-5. **Architecture** — Orchestra graph + 6 specialists + GCP integration diagram
-6. **Why Orchestra** — 4 differentiators vs LangGraph/CrewAI (typed state, scripted testing, cost-aware routing, GCP-native)
-7. **Market & TAM** — $5B TPRM, $14B GRC, growing 12% CAGR
-8. **Revenue model** — open-source framework, SaaS for TPRM tier ($5K-$50K/year per buyer)
-9. **Roadmap** — sanctions screening, vendor onboarding API, ServiceNow integration
-10. **CTA** — GitHub link, demo URL, contact
+The deck doubles as a standalone artifact judges can read after the video. Each slide carries 2-3 sentences plus one visual.
+
+1. **Cover** — title, Orchestra wordmark, hackathon name, team, date
+2. **The problem** — third-party risk review is slow, expensive, and document-heavy; existing tools are GRC platforms with long workflows
+3. **The solution** — multi-agent review that produces a scored verdict, action plan, and Sheet report in under 90 seconds
+4. **Architecture overview** — Orchestra graph + 6 specialists + GCP integration diagram
+5. **The agent pipeline** — visual of intake → router → 6 specialists → risk score → policy → remediation → coordinator
+6. **Demo screenshot 1** — landing page with HashiCorp and Acme example tiles
+7. **Demo screenshot 2** — live React dashboard mid-run, NodeCards lighting up as specialists complete
+8. **Demo screenshot 3** — risk score hero + findings table + remediation roadmap
+9. **Demo screenshot 4** — Google Sheet output, populated live by the Coordinator
+10. **Spotlight: Risk Scoring agent** — how the 0-100 score and traffic-light verdict are computed
+11. **Spotlight: Remediation agent** — example output with prioritised, mode-aware action items
+12. **Spotlight: ESG agent** — what it covers and why it differentiates from existing tools
+13. **Why Orchestra** — typed state, scripted-LLM testing, cost-aware routing, GCP-native; comparison to LangGraph / CrewAI
+14. **Market & business model** — TAM, SAM, open-source framework + SaaS tier for the application
+15. **Roadmap + CTA** — next agents (sanctions, privacy), integrations (ServiceNow, Jira), GitHub link, demo URL
 
 ### 7.4 Video script outline (5 min)
 
@@ -298,16 +320,33 @@ It is built on Orchestra, a Python multi-agent framework with first-class suppor
 
 Sync mechanism: this design doc is the canonical spec. Other instance reviews it before starting overlapping work. We commit to `main` frequently; rebase often.
 
+### 8.1 Replay capture
+
+**Format:** JSONL of LLM call recordings (input prompt + output text) consumed by Orchestra's existing `ReplayProvider`. The graph re-executes from scratch on each replay run; only the Gemini calls are served from disk. Agent-code changes still take effect on replay runs without requiring re-capture — only prompt changes invalidate the recording.
+
+**Files (committed to repo):**
+- `examples/tprm/hashicorp/replay.jsonl`
+- `examples/tprm/acme/replay.jsonl`
+
+**Capture command:** existing TPRM CLI with a `--capture <path>` flag (added in this work) wraps `GoogleProvider` with a tee that writes every LLM call to JSONL while passing the response through.
+
+**Capture timing:**
+- Day 2 evening: first capture after all 3 new agents land and prompts stabilize
+- Day 3 morning: re-capture if any prompt changed; final captures committed before video recording
+
+**Read path:** FastAPI's run launcher attempts live Gemini first. On `RateLimitError` (429), `ProviderUnavailableError` (5xx), or any agent-level exception escaping `safe_specialist`, it re-launches the same graph through `ReplayProvider.from_jsonl(...)` and tags the run state with `serving_mode = "replay"`. The React UI reads `serving_mode` from the run state and renders a small badge.
+
 ## 9. Risks & Mitigations
 
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
-| Gemini rate-limit during heavy judging traffic | Medium | High | Cache last successful HashiCorp run as replay fallback; serve from `--replay` when `429` returned |
+| Gemini rate-limit during heavy judging traffic | Medium | High | Hybrid live-with-replay-fallback. Every run launches against live Gemini by default; FastAPI handler catches `429` (and other transient errors) and re-launches the same graph through `ReplayProvider` against the committed JSONL recording. Small "live" / "from cache" badge in the UI reflects which path served the run. |
+| Acme M&A coordinator bug (CR-04) not fixed by Day 2 | Medium | Medium | Same hybrid fallback covers this — Acme tile always works because the replay path is bug-independent (replay JSONL captured against a known-good prompt). When CR-04 lands, live runs work too. |
 | FastAPI wiring (#11) slips | Medium | Critical | This instance starts agent work in parallel; agents are pure Python and don't depend on server |
 | BigQuery / Sheets IAM blocks Cloud Run | Medium | High | Provision SA + roles on Day 1, test write before agent work; fall back to mocked writes for demo |
 | Two instances stomp on `graph.py` | High | Medium | Strict coordination via this doc; new nodes added via append; merge by hand if needed |
 | Video recording bugs / OBS crash | Low | High | Record draft on Day 2; final on Day 3 morning |
-| Cloud Run cold start hurts first-impression | Low | Medium | Set `min-instances=1` for judging window (cost: ~$3/day, worth it) |
+| Cloud Run cold start hurts first-impression | Resolved | — | **Set `min-instances=1` for the judging window** (~$3-5/day, decided). Revert to scale-to-zero after the 7-day judging window closes (~2026-05-26). |
 | Demo run takes > 90s and judges close tab | Low | Medium | Risk score appears at ~30s mark from specialist join; full run by 60s |
 | New agent prompt regresses existing findings count | Medium | Medium | Snapshot HashiCorp output before changes; assert ≥ 30 findings post-change |
 
