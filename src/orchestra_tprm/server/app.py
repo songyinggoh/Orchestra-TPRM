@@ -27,6 +27,46 @@ from pydantic import BaseModel
 
 _logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# Path-traversal guard (CR-01)
+# ---------------------------------------------------------------------------
+
+_ALLOWED_PACKET_ROOT = Path(
+    os.environ.get("PACKET_ROOT", "examples")
+).resolve()
+
+
+def _validate_packet_path(raw: str) -> Path:
+    """Resolve *raw* relative to the allowed root and reject any escape attempt."""
+    p = (_ALLOWED_PACKET_ROOT / raw).resolve()
+    if not str(p).startswith(str(_ALLOWED_PACKET_ROOT)):
+        raise ValueError(
+            f"packet_path {raw!r} escapes allowed root {str(_ALLOWED_PACKET_ROOT)!r}"
+        )
+    return p
+
+
+# ---------------------------------------------------------------------------
+# Run-registry eviction (CR-02)
+# ---------------------------------------------------------------------------
+
+_MAX_RUNS = 500
+_RUN_TTL_SEC = 3600  # 1 hour
+
+
+def _evict_stale_runs() -> None:
+    """Remove finished/errored or TTL-expired entries from ``_runs``."""
+    now = time.time()
+    stale = [
+        rid for rid, meta in list(_runs.items())
+        if now - meta.get("created_at", now) > _RUN_TTL_SEC
+        or meta.get("status") in ("done", "error")
+    ]
+    # Keep at most _MAX_RUNS total; evict oldest stale first.
+    for rid in stale[: max(0, len(_runs) - _MAX_RUNS + len(stale))]:
+        _runs.pop(rid, None)
+
+
 app = FastAPI(
     title="Orchestra TPRM",
     description="Multi-agent TPRM pipeline powered by Orchestra + Gemini.",
@@ -36,7 +76,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,   # wildcard origin + credentials rejected by browsers per CORS spec
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -310,12 +350,22 @@ async def health() -> HealthResponse:
 async def run_tprm(request: RunRequest) -> RunResponse:
     """Launch a TPRM graph run. Returns run_id immediately; stream events via /events/{run_id}."""
 
+    # Validate packet_path is inside the allowed root (CR-01).
+    try:
+        safe_packet_path = str(_validate_packet_path(request.packet_path))
+    except ValueError as exc:
+        from fastapi import HTTPException as _HTTPException
+        raise _HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # Evict finished/stale runs before adding a new one (CR-02).
+    _evict_stale_runs()
+
     run_id = uuid.uuid4().hex
     queue: asyncio.Queue[str | None] = asyncio.Queue()
     task = asyncio.create_task(
         _execute_graph_task(
             run_id, queue, request.mode, request.subject_name,
-            request.packet_path, request.drive_folder_url,
+            safe_packet_path, request.drive_folder_url,
             request.ma_scope,
         )
     )
