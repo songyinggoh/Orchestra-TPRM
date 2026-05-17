@@ -14,9 +14,12 @@ from __future__ import annotations
 import csv
 import io
 import json
+import logging
 import tempfile
 from pathlib import Path
 from typing import Any
+
+_logger = logging.getLogger(__name__)
 
 from orchestra.core.context import ExecutionContext
 from orchestra.core.types import Message, MessageRole
@@ -127,7 +130,8 @@ def _coerce_ic_memo(raw: Any) -> ICMemo | None:
     if isinstance(raw, dict):
         try:
             return ICMemo(**raw)
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
+            _logger.warning("ICMemo coercion failed: %s — raw=%r", exc, raw)
             return None
     return None
 
@@ -140,7 +144,8 @@ def _coerce_pmi_plan(raw: Any) -> PMIPlan | None:
     if isinstance(raw, dict):
         try:
             return PMIPlan(**raw)
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
+            _logger.warning("PMIPlan coercion failed: %s — raw=%r", exc, raw)
             return None
     return None
 
@@ -320,20 +325,20 @@ class Coordinator:
         )
 
         # ----- Persist via DocsAdapter (or return early if no adapter) -----
-        body = "\n\n".join(f"{h}\n{c}" for h, c in sections.items())
-
         if self._docs is None:
             return {
                 "verdict_doc_id": self._doc_id,
                 "verdict_local_path": "",
             }
 
+        # Use populate_ma_memo consistently for both pre-existing and new docs
+        # so the structured sections dict is always used (not the flat body).
         if self._doc_id:
             doc_id = self._doc_id
-            self._docs.populate_ma_memo(doc_id, sections)
         else:
             title = f"Deal Memo — {state.get('subject_name', 'unknown')}"
-            doc_id = self._docs.create_doc(title, body)
+            doc_id = self._docs.create_doc(title, "")
+        self._docs.populate_ma_memo(doc_id, sections)
 
         return {
             "verdict_doc_id": doc_id,
