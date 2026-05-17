@@ -11,6 +11,45 @@ interface Finding {
   severity: "low" | "medium" | "high" | "critical";
   summary: string;
   evidence?: unknown[];
+  workstream?: "legal" | "financial" | "tech" | "commercial" | "hr" | "esg" | "regulatory";
+  exposure_usd_range?: [number, number];
+  ic_decision?: "deal-stopper" | "price-adjustment" | "SPA-protection" | "post-close-monitoring";
+}
+
+interface MAScope {
+  investment_thesis: string;
+  enterprise_value_usd?: number;
+  materiality_threshold_usd?: number;
+  deal_breakers: string[];
+  active_workstreams: string[];
+}
+
+interface ICRiskItem {
+  finding_id: string;
+  workstream: string;
+  exposure_usd_range?: [number, number];
+  mitigation: "price-chip" | "indemnity" | "escrow" | "RWI" | "earn-out" | "CP" | "post-close";
+  probability: "low" | "medium" | "high";
+}
+
+interface ICMemo {
+  executive_summary: string;
+  headline_terms: string;
+  recommendation: "proceed" | "reprice" | "walk";
+  risk_register: ICRiskItem[];
+}
+
+interface PMIItem {
+  workstream: string;
+  action: string;
+  deadline_tier: "day-30" | "day-60" | "day-100" | "day-180";
+  owner: string;
+  dependency?: string | null;
+}
+
+interface PMIPlan {
+  summary: string;
+  items: PMIItem[];
 }
 
 interface VerdictData {
@@ -19,6 +58,8 @@ interface VerdictData {
   findings_count: number;
   findings: Finding[];
   verdict_doc_id?: string;
+  ic_memo?: ICMemo;
+  pmi_plan?: PMIPlan;
 }
 
 interface RunState {
@@ -88,6 +129,29 @@ const SEV_ICON: Record<string, string> = {
   medium:   "warning_amber",
   low:      "info",
 };
+
+// IC decision color palette (CONTEXT.md locked mapping)
+const IC_COLOR: Record<string, string> = {
+  "deal-stopper":          "#ea4335",
+  "price-adjustment":      "#fa7b17",
+  "SPA-protection":        "#fbbc04",
+  "post-close-monitoring": "#34a853",
+};
+
+// Workstream badge color palette
+const WS_COLOR: Record<string, string> = {
+  legal:      "#4285f4",
+  financial:  "#34a853",
+  tech:       "#8430ce",
+  commercial: "#1a73e8",
+  hr:         "#e8710a",
+  esg:        "#0f9d58",
+  regulatory: "#d93025",
+};
+
+const DEFAULT_WORKSTREAMS: MAScope["active_workstreams"] = [
+  "legal", "financial", "tech", "commercial", "hr", "esg", "regulatory",
+];
 
 // Specialist nodes that get left-indented
 const SPECIALIST_NODES = new Set([
