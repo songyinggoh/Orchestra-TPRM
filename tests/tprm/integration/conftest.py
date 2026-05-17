@@ -261,24 +261,28 @@ def _ma_responses() -> list[LLMResponse]:
                 "Open Questions": "Customer retention since BSL transition?",
             })
         ),
-        # PMIPlannerAgent — 100-day integration plan
+        # PMIPlannerAgent — 100-day integration plan (must be a JSON object so the
+        # LLM-driven path in PMIPlannerAgent.__call__ is exercised, not the fallback).
         LLMResponse(
-            content=json.dumps([
-                {
-                    "workstream": "tech",
-                    "action": "Conduct IT systems inventory and dependency mapping.",
-                    "deadline_tier": "day-30",
-                    "owner": "CIO",
-                    "dependency": None,
-                },
-                {
-                    "workstream": "legal",
-                    "action": "Complete entity rationalization and regulatory filings.",
-                    "deadline_tier": "day-60",
-                    "owner": "General Counsel",
-                    "dependency": None,
-                },
-            ])
+            content=json.dumps({
+                "summary": "100-day integration plan.",
+                "items": [
+                    {
+                        "workstream": "tech",
+                        "action": "Conduct IT systems inventory and dependency mapping.",
+                        "deadline_tier": "day-30",
+                        "owner": "CIO",
+                        "dependency": None,
+                    },
+                    {
+                        "workstream": "legal",
+                        "action": "Complete entity rationalization and regulatory filings.",
+                        "deadline_tier": "day-60",
+                        "owner": "General Counsel",
+                        "dependency": None,
+                    },
+                ],
+            })
         ),
     ]
 
