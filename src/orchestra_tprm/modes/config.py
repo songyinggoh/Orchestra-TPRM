@@ -20,6 +20,7 @@ class SpecialistModels(BaseModel):
     security: str | None = None
     code: str | None = None
     external: str | None = None
+    saas_metrics: str | None = None
 
 
 class ModeConfig(BaseModel):

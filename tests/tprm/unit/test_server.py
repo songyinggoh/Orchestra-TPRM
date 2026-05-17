@@ -19,7 +19,7 @@ client = TestClient(app)
 # ── Mock helpers ──────────────────────────────────────────────────────────────
 
 
-async def _noop_graph_task(run_id, queue, mode, subject_name, packet_path, drive_folder_url=None):
+async def _noop_graph_task(run_id, queue, mode, subject_name, packet_path, drive_folder_url=None, ma_scope=None):
     """Instant stub: emits started + done then closes the stream."""
     import json
     queue.put_nowait(f'data: {json.dumps({"type": "started", "run_id": run_id})}\n\n')

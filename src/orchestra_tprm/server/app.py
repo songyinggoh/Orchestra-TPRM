@@ -147,6 +147,7 @@ async def _execute_graph_task(
     subject_name: str,
     packet_path: str,
     drive_folder_url: str | None = None,
+    ma_scope: dict | None = None,
 ) -> None:
     """Background task: runs the TPRM graph and emits SSE events."""
     try:
@@ -204,6 +205,7 @@ async def _execute_graph_task(
             "mode": cfg.name,
             "subject_name": subject_name,
             "packet_path": packet_path,
+            "ma_scope": ma_scope,
         }
 
         # Launch graph in a sub-task so we can poll progress concurrently.
@@ -274,6 +276,7 @@ class RunRequest(BaseModel):
     subject_name: str
     packet_path: str
     drive_folder_url: str | None = None
+    ma_scope: dict | None = None  # serialised MAScope; parsed downstream
 
 
 class RunResponse(BaseModel):
@@ -303,6 +306,7 @@ async def run_tprm(request: RunRequest) -> RunResponse:
         _execute_graph_task(
             run_id, queue, request.mode, request.subject_name,
             request.packet_path, request.drive_folder_url,
+            request.ma_scope,
         )
     )
     _runs[run_id] = {
