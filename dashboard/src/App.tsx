@@ -1141,9 +1141,29 @@ export default function App() {
       const es = new EventSource(`/events/${run_id}`);
       esRef.current = es;
 
+      // Ref is set synchronously before es.close() so onerror can check it
+      // without racing against React's async state batching. Checking
+      // prev.phase inside setRunState is unreliable when onerror fires
+      // during or immediately after the done/error state update.
+      const streamTerminated = { current: false };
+
       es.onmessage = (e) => {
         try {
           const msg = JSON.parse(e.data);
+          if (msg.type === "done") {
+            streamTerminated.current = true;
+            timerRef.current && clearInterval(timerRef.current!);
+            es.close();
+            setRunState((prev) => prev ? { ...prev, phase: "done" } : prev);
+            return;
+          }
+          if (msg.type === "error") {
+            streamTerminated.current = true;
+            timerRef.current && clearInterval(timerRef.current!);
+            es.close();
+            setRunState((prev) => prev ? { ...prev, phase: "error", error: msg.message } : prev);
+            return;
+          }
           setRunState((prev) => {
             if (!prev) return prev;
             switch (msg.type) {
@@ -1157,14 +1177,6 @@ export default function App() {
                 };
               case "verdict":
                 return { ...prev, verdict: msg };
-              case "done":
-                timerRef.current && clearInterval(timerRef.current!);
-                es.close();
-                return { ...prev, phase: "done" };
-              case "error":
-                timerRef.current && clearInterval(timerRef.current!);
-                es.close();
-                return { ...prev, phase: "error", error: msg.message };
               default:
                 return prev;
             }
@@ -1173,12 +1185,14 @@ export default function App() {
       };
 
       es.onerror = () => {
+        // Guard: server closes the SSE connection after sending "done" —
+        // some browsers fire onerror on clean close. The ref check is
+        // synchronous and immune to React state-batching races.
+        if (streamTerminated.current) { es.close(); return; }
+        streamTerminated.current = true;
+        timerRef.current && clearInterval(timerRef.current!);
         setRunState((prev) => {
-          // Server closes the connection after sending "done" — that triggers
-          // onerror in some browsers even on a clean close. Ignore it if the
-          // run already reached a terminal state.
           if (!prev || prev.phase === "done" || prev.phase === "error") return prev;
-          timerRef.current && clearInterval(timerRef.current!);
           return { ...prev, phase: "error", error: "Connection lost" };
         });
         es.close();

@@ -51,7 +51,8 @@ def _validate_packet_path(raw: str) -> Path:
 # ---------------------------------------------------------------------------
 
 _MAX_RUNS = 500
-_RUN_TTL_SEC = 3600  # 1 hour
+_RUN_TTL_SEC = 3600          # 1 hour
+_STREAM_DEADLINE_SEC = 900   # 15-minute hard cap per SSE stream (patchable in tests)
 
 
 def _evict_stale_runs() -> None:
@@ -314,8 +315,11 @@ async def _execute_graph_task(
         _runs[run_id]["status"] = "error"
         await queue.put(_sse("error", {"message": str(exc)}))
     finally:
-        await queue.put(_sse("done", {"run_id": run_id}))
-        await queue.put(None)  # sentinel — closes SSE stream
+        # put_nowait avoids re-raising CancelledError on task cancellation:
+        # an awaited queue.put() in a finally block gets cancelled again,
+        # silently dropping the done sentinel and leaving the SSE stream open.
+        queue.put_nowait(_sse("done", {"run_id": run_id}))
+        queue.put_nowait(None)  # sentinel — closes SSE stream
 
 
 # ── Request / Response models ─────────────────────────────────────────────────
@@ -389,10 +393,11 @@ async def events(run_id: str) -> StreamingResponse:
     queue: asyncio.Queue[str | None] = _runs[run_id]["queue"]
 
     async def _stream() -> Any:
-        deadline = time.monotonic() + 900  # 15-minute hard cap
+        deadline = time.monotonic() + _STREAM_DEADLINE_SEC
         while True:
             if time.monotonic() > deadline:
                 yield _sse("error", {"message": "Run exceeded 15-minute limit"})
+                yield _sse("done", {"run_id": run_id})
                 break
             try:
                 msg = await asyncio.wait_for(queue.get(), timeout=30)

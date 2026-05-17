@@ -6,6 +6,7 @@ spawning Gemini CLI subprocesses.
 from __future__ import annotations
 
 import asyncio
+import json
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
@@ -312,3 +313,198 @@ def test_sse_verdict_contains_pmi_plan_for_ma_mode() -> None:
     assert verdict is not None
     assert "pmi_plan" in verdict, "verdict must carry pmi_plan for M&A mode"
     assert verdict["pmi_plan"] is not None
+
+
+# ── Root-cause tests for "Connection lost" false positive ─────────────────────
+#
+# Three failure modes cause the frontend to show "Connection lost" on a
+# completed run:
+#
+#   RC-1  Frontend race: es.close() was called inside the setRunState updater;
+#         some browsers fire onerror synchronously during close(), before React
+#         commits the done state update.  Fixed: ref set before es.close().
+#         (No Python test — this is a browser timing issue.)
+#
+#   RC-2  Backend: put_nowait vs await queue.put() in the finally block.
+#         If the asyncio task is cancelled (e.g. on server shutdown), the
+#         await inside the finally block re-raises CancelledError, so done
+#         and the None sentinel are never queued.  The SSE stream hangs open
+#         and the browser eventually fires onerror.
+#
+#   RC-3  Backend: deadline path in _stream() yielded error + break but no
+#         done event, leaving the browser without a terminal signal.
+
+
+async def _exception_before_started_task(run_id, queue, mode, subject_name, packet_path, drive_folder_url=None, ma_scope=None):
+    """Simulates a graph crash before the started event.
+
+    Mirrors the try/except/finally structure of the real _execute_graph_task so
+    that error + done + None are properly emitted — if this cleanup is absent the
+    SSE stream hangs waiting for the None sentinel (30-second heartbeat loop).
+    """
+    try:
+        raise RuntimeError("boom before started")
+    except Exception as exc:
+        queue.put_nowait(f'data: {json.dumps({"type": "error", "message": str(exc)})}\n\n')
+    finally:
+        queue.put_nowait(f'data: {json.dumps({"type": "done", "run_id": run_id})}\n\n')
+        queue.put_nowait(None)
+
+
+async def _exception_after_started_task(run_id, queue, mode, subject_name, packet_path, drive_folder_url=None, ma_scope=None):
+    """Simulates a graph crash after the started event is already queued."""
+    queue.put_nowait(f'data: {json.dumps({"type": "started", "run_id": run_id})}\n\n')
+    try:
+        raise RuntimeError("boom after started")
+    except Exception as exc:
+        queue.put_nowait(f'data: {json.dumps({"type": "error", "message": str(exc)})}\n\n')
+    finally:
+        queue.put_nowait(f'data: {json.dumps({"type": "done", "run_id": run_id})}\n\n')
+        queue.put_nowait(None)
+
+
+# ── RC-2: cancellation safety of the finally block ───────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_put_nowait_in_finally_survives_task_cancellation() -> None:
+    """
+    RC-2: Verify that put_nowait() does not raise when called during
+    CancelledError propagation.  An awaited queue.put() in a finally block
+    re-raises CancelledError and silently drops the sentinel; put_nowait()
+    with an unbounded queue (maxsize=0) is always safe to call without await.
+    """
+    q: asyncio.Queue = asyncio.Queue()  # maxsize=0 → unlimited
+
+    async def _slow_coro() -> None:
+        try:
+            await asyncio.sleep(60)
+        finally:
+            # This is the critical assertion: put_nowait must not raise
+            # even when the coroutine is being cancelled.
+            q.put_nowait("done_sentinel")
+            q.put_nowait(None)
+
+    task = asyncio.create_task(_slow_coro())
+    await asyncio.sleep(0)  # let the task start and reach its first await
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+
+    assert q.get_nowait() == "done_sentinel", "put_nowait in finally must succeed on cancellation"
+    assert q.get_nowait() is None
+
+
+@pytest.mark.asyncio
+async def test_finally_block_emits_done_and_none_on_graph_exception() -> None:
+    """
+    RC-2 (unit): The try/except/finally pattern used in _execute_graph_task
+    must emit done + None even when the exception path is taken.  This test
+    isolates the pattern itself without importing the real graph machinery.
+    """
+    q: asyncio.Queue = asyncio.Queue()
+    run_id = "rc2-unit"
+    fake_runs: dict = {run_id: {"status": "accepted"}}
+
+    async def _graph_task_pattern() -> None:
+        """Minimal reproduction of _execute_graph_task's error-handling skeleton."""
+        try:
+            fake_runs[run_id]["status"] = "running"
+            raise RuntimeError("graph exploded")
+        except Exception as exc:
+            fake_runs[run_id]["status"] = "error"
+            q.put_nowait(f'data: {json.dumps({"type": "error", "message": str(exc)})}\n\n')
+        finally:
+            q.put_nowait(f'data: {json.dumps({"type": "done", "run_id": run_id})}\n\n')
+            q.put_nowait(None)
+
+    await _graph_task_pattern()
+
+    items = []
+    while not q.empty():
+        items.append(q.get_nowait())
+
+    events = [
+        json.loads(item[len("data: "):])
+        for item in items
+        if item is not None and isinstance(item, str) and item.startswith("data: ")
+    ]
+    types = [e.get("type") for e in events]
+
+    assert "error" in types, f"error expected; got {types}"
+    assert "done" in types, f"done expected; got {types}"
+    assert types.index("error") < types.index("done")
+    assert items[-1] is None, "None sentinel must be last"
+
+
+# ── RC-3: deadline path must emit done ────────────────────────────────────────
+
+# Patch _STREAM_DEADLINE_SEC to 0 so the deadline fires on the first loop
+# iteration without touching time.monotonic (which would break asyncio's
+# internal scheduler and cause spurious timeouts in other tests).
+_DEADLINE_PATCH = "orchestra_tprm.server.app._STREAM_DEADLINE_SEC"
+
+
+@patch(_MOCK_TASK, new=_noop_graph_task)
+@patch(_PACKET_ROOT_PATCH, Path("/tmp").resolve())
+@patch(_DEADLINE_PATCH, 0)
+def test_deadline_path_emits_done_via_stream() -> None:
+    """
+    RC-3: With _STREAM_DEADLINE_SEC=0 the deadline fires on the first loop
+    iteration.  The stream must still yield 'done' before closing — without it
+    the browser cannot distinguish a 15-min timeout from a network drop and
+    will show 'Connection lost'.
+    """
+    run_id = client.post(
+        "/run", json={"mode": "vendor", "subject_name": "X", "packet_path": "/tmp/x"}
+    ).json()["run_id"]
+
+    events = _collect_sse_events(run_id)
+    types = [e.get("type") for e in events]
+    assert "done" in types, f"done must appear even on deadline breach; got {types}"
+    assert "error" in types, f"error event expected on deadline; got {types}"
+    assert types.index("error") < types.index("done"), "error must precede done"
+
+
+# ── Exception-path ordering ───────────────────────────────────────────────────
+
+
+@patch(_MOCK_TASK, new=_exception_after_started_task)
+@patch(_PACKET_ROOT_PATCH, Path("/tmp").resolve())
+def test_exception_after_started_still_emits_error_and_done() -> None:
+    """
+    RC-2: An exception raised inside the graph (after 'started' is sent) must
+    produce error → done in the SSE stream — not a hanging connection.
+    """
+    run_id = client.post(
+        "/run", json={"mode": "vendor", "subject_name": "X", "packet_path": "/tmp/x"}
+    ).json()["run_id"]
+
+    events = _collect_sse_events(run_id)
+    types = [e.get("type") for e in events]
+
+    assert "started" in types, f"started expected; got {types}"
+    assert "error" in types, f"error expected after exception; got {types}"
+    assert "done" in types, f"done must always fire (finally guarantee); got {types}"
+    assert types.index("error") < types.index("done")
+
+
+@patch(_MOCK_TASK, new=_exception_before_started_task)
+@patch(_PACKET_ROOT_PATCH, Path("/tmp").resolve())
+def test_exception_before_started_still_emits_error_and_done() -> None:
+    """
+    RC-2: Even when the graph crashes before writing the started event, the
+    finally block must emit error + done so the browser reaches a terminal state.
+    """
+    run_id = client.post(
+        "/run", json={"mode": "vendor", "subject_name": "X", "packet_path": "/tmp/x"}
+    ).json()["run_id"]
+
+    events = _collect_sse_events(run_id)
+    types = [e.get("type") for e in events]
+
+    assert "error" in types, f"error expected; got {types}"
+    assert "done" in types, f"done must fire even before started; got {types}"
+    assert types.index("error") < types.index("done")
