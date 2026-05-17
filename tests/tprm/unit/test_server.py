@@ -6,6 +6,7 @@ spawning Gemini CLI subprocesses.
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -14,6 +15,9 @@ from fastapi.testclient import TestClient
 from orchestra_tprm.server.app import app
 
 client = TestClient(app)
+
+# Patch target for path-traversal guard — allows tests to set a permissive root
+_PACKET_ROOT_PATCH = "orchestra_tprm.server.app._ALLOWED_PACKET_ROOT"
 
 
 # ── Mock helpers ──────────────────────────────────────────────────────────────
@@ -40,6 +44,7 @@ def test_health_endpoint_returns_ok() -> None:
 
 
 @patch(_MOCK_TASK, new=_noop_graph_task)
+@patch(_PACKET_ROOT_PATCH, Path("/tmp").resolve())
 def test_run_endpoint_accepts_vendor_mode() -> None:
     response = client.post(
         "/run",
@@ -53,6 +58,7 @@ def test_run_endpoint_accepts_vendor_mode() -> None:
 
 
 @patch(_MOCK_TASK, new=_noop_graph_task)
+@patch(_PACKET_ROOT_PATCH, Path("/tmp").resolve())
 def test_run_endpoint_accepts_ma_mode() -> None:
     response = client.post(
         "/run",
@@ -64,6 +70,7 @@ def test_run_endpoint_accepts_ma_mode() -> None:
     assert body["status"] == "accepted"
 
 
+@patch(_PACKET_ROOT_PATCH, Path("/tmp").resolve())
 def test_run_endpoint_rejects_invalid_mode() -> None:
     response = client.post(
         "/run",
@@ -81,10 +88,11 @@ def test_events_endpoint_returns_404_for_unknown_run() -> None:
 @patch(_MOCK_TASK, new=_noop_graph_task)
 def test_run_is_listed_after_launch(tmp_path) -> None:
     """A launched run must appear in GET /runs immediately."""
-    response = client.post(
-        "/run",
-        json={"mode": "vendor", "subject_name": "TestCorp", "packet_path": str(tmp_path)},
-    )
+    with patch(_PACKET_ROOT_PATCH, tmp_path.resolve()):
+        response = client.post(
+            "/run",
+            json={"mode": "vendor", "subject_name": "TestCorp", "packet_path": str(tmp_path)},
+        )
     assert response.status_code == 200
     run_id = response.json()["run_id"]
 
@@ -95,6 +103,7 @@ def test_run_is_listed_after_launch(tmp_path) -> None:
 
 
 @patch(_MOCK_TASK, new=_noop_graph_task)
+@patch(_PACKET_ROOT_PATCH, Path("/tmp").resolve())
 def test_run_returns_unique_ids() -> None:
     """Each POST /run must produce a distinct run_id."""
     ids = set()
@@ -108,6 +117,7 @@ def test_run_returns_unique_ids() -> None:
 
 
 @patch(_MOCK_TASK, new=_noop_graph_task)
+@patch(_PACKET_ROOT_PATCH, Path("/tmp").resolve())
 def test_run_endpoint_accepts_ma_scope() -> None:
     """POST /run with ma_scope should be accepted (200), not rejected."""
     response = client.post(
@@ -130,6 +140,7 @@ def test_run_endpoint_accepts_ma_scope() -> None:
 
 
 @patch(_MOCK_TASK, new=_noop_graph_task)
+@patch(_PACKET_ROOT_PATCH, Path("/tmp").resolve())
 def test_run_endpoint_accepts_ma_mode_without_scope() -> None:
     """ma_scope is optional — omitting it must still succeed."""
     response = client.post(
@@ -139,6 +150,7 @@ def test_run_endpoint_accepts_ma_mode_without_scope() -> None:
     assert response.status_code == 200
 
 
+@patch(_PACKET_ROOT_PATCH, Path("/tmp").resolve())
 def test_run_endpoint_rejects_invalid_ma_scope_type() -> None:
     """ma_scope must be a dict or null, not a string."""
     response = client.post(
@@ -151,3 +163,13 @@ def test_run_endpoint_rejects_invalid_ma_scope_type() -> None:
         },
     )
     assert response.status_code == 422
+
+
+def test_run_endpoint_rejects_path_traversal() -> None:
+    """packet_path that escapes PACKET_ROOT must return 400 (CR-01)."""
+    response = client.post(
+        "/run",
+        json={"mode": "vendor", "subject_name": "Attacker", "packet_path": "../../../etc/passwd"},
+    )
+    assert response.status_code == 400
+    assert "escapes" in response.json().get("detail", "").lower()
