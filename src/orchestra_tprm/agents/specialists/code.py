@@ -114,7 +114,7 @@ class CodeAgent(BaseTPRMAgent):
             if data.get("patch_needed")
             else _tech_debt_to_severity(data.get("tech_debt", "low"))
         )
-        return [
+        findings: list[Finding] = [
             Finding(
                 agent=self.name,
                 category="code-risk",
@@ -123,3 +123,64 @@ class CodeAgent(BaseTPRMAgent):
                 raw=data,
             )
         ]
+
+        # ---- M&A-mode OSS license contamination pass (REQ-08) ----
+        if ctx.state.get("mode") == "ma":
+            license_str = str(data.get("license") or "").upper()
+
+            ma_scope_raw = ctx.state.get("ma_scope")
+            ev: int | None = None
+            if isinstance(ma_scope_raw, dict):
+                ev_raw = ma_scope_raw.get("enterprise_value_usd")
+                ev = int(ev_raw) if ev_raw is not None else None
+            elif ma_scope_raw is not None and hasattr(ma_scope_raw, "enterprise_value_usd"):
+                ev = ma_scope_raw.enterprise_value_usd
+
+            if license_str and ("AGPL" in license_str or ("GPL" in license_str and "LGPL" not in license_str)):
+                findings.append(
+                    Finding(
+                        agent=self.name,
+                        category="oss-license",
+                        severity="critical",
+                        summary=(
+                            f"GPL/AGPL detected ({license_str}) in commercial product — "
+                            "product may be unlicensable without source disclosure"
+                        ),
+                        workstream="tech",
+                        ic_decision="deal-stopper",
+                        exposure_usd_range=(0, ev) if ev else None,
+                        raw={"license": license_str},
+                    )
+                )
+            elif "LGPL" in license_str:
+                findings.append(
+                    Finding(
+                        agent=self.name,
+                        category="oss-license",
+                        severity="high",
+                        summary=(
+                            f"LGPL detected ({license_str}) — ring-fence via specific "
+                            "indemnity / warranty in SPA"
+                        ),
+                        workstream="tech",
+                        ic_decision="SPA-protection",
+                        raw={"license": license_str},
+                    )
+                )
+            elif license_str and license_str not in {"MIT", "APACHE", "APACHE-2.0", "BSD", "BSD-3-CLAUSE", "BSD-2-CLAUSE", "ISC", ""}:
+                findings.append(
+                    Finding(
+                        agent=self.name,
+                        category="oss-license",
+                        severity="low",
+                        summary=(
+                            f"Non-standard license ({license_str}) — monitor post-close "
+                            "for contamination risk"
+                        ),
+                        workstream="tech",
+                        ic_decision="post-close-monitoring",
+                        raw={"license": license_str},
+                    )
+                )
+
+        return findings
