@@ -39,6 +39,14 @@ class FakeDocsAdapter:
     def append_text(self, doc_id: str, text: str) -> None:
         self._docs.setdefault(doc_id, []).append(text)
 
+    def populate_ma_memo(
+        self, doc_id: str, sections: dict[str, str]
+    ) -> dict[str, str]:
+        self._docs.setdefault(doc_id, []).extend(
+            f"{h}\n{b}" for h, b in sections.items()
+        )
+        return {"doc_id": doc_id, "url": f"fake://docs/{doc_id}"}
+
 
 class DocsAdapter:
     """Real Google Docs v1 adapter using Application Default Credentials.

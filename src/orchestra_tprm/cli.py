@@ -10,6 +10,8 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Optional
 
@@ -18,7 +20,7 @@ import yaml
 
 from orchestra.core.runner import run as run_graph
 from orchestra.testing import ScriptedLLM
-from orchestra.core.types import LLMResponse
+from orchestra.core.types import LLMResponse, Message
 
 from orchestra_tprm.adapters.bigquery import BigQueryAdapter, FakeBigQueryAdapter
 from orchestra_tprm.adapters.docs import DocsAdapter, FakeDocsAdapter
@@ -35,6 +37,55 @@ from orchestra_tprm.modes.config import load_mode
 app = typer.Typer(add_completion=False, help="Multi-agent TPRM framework.")
 
 
+class _RecordingProvider:
+    """Thin provider wrapper that intercepts complete() calls and writes a JSONL replay file."""
+
+    def __init__(self, inner: Any, output_path: Path) -> None:
+        self._inner = inner
+        self._output_path = output_path
+        self._calls: list[dict] = []
+
+    # Forward provider protocol attributes
+    @property
+    def provider_name(self) -> str:
+        return getattr(self._inner, "provider_name", "recording")
+
+    @property
+    def default_model(self) -> str:
+        return getattr(self._inner, "default_model", "gemini-2.5-flash")
+
+    async def complete(self, messages: list[Message], **kwargs: Any) -> LLMResponse:
+        import time
+        t0 = time.monotonic()
+        response = await self._inner.complete(messages, **kwargs)
+        duration_ms = (time.monotonic() - t0) * 1000
+        usage = response.usage
+        self._calls.append({
+            "event_id": uuid.uuid4().hex,
+            "run_id": "recorded",
+            "timestamp": datetime.now(UTC).isoformat(),
+            "sequence": len(self._calls),
+            "event_type": "llm.called",
+            "schema_version": 1,
+            "node_id": "agent",
+            "agent_name": "agent",
+            "model": kwargs.get("model", self.default_model),
+            "content": response.content or "",
+            "tool_calls": [tc.model_dump() for tc in (response.tool_calls or [])],
+            "input_tokens": usage.input_tokens if usage else 0,
+            "output_tokens": usage.output_tokens if usage else 0,
+            "cost_usd": usage.estimated_cost_usd if usage else 0.0,
+            "duration_ms": duration_ms,
+            "finish_reason": response.finish_reason or "stop",
+        })
+        return response
+
+    def flush(self) -> None:
+        lines = [json.dumps(c) for c in self._calls]
+        self._output_path.write_text("\n".join(lines), encoding="utf-8")
+        typer.echo(f"Recorded {len(lines)} LLM calls → {self._output_path}")
+
+
 async def _run_and_maybe_record(
     graph: Any,
     initial: dict,
@@ -42,22 +93,13 @@ async def _run_and_maybe_record(
     persist: bool,
     record_replay: Optional[Path],
 ) -> Any:
-    """Run the graph and optionally export LLMCalled events to a JSONL replay file."""
-    result = await run_graph(graph, input=initial, provider=provider, persist=persist)
-
-    if record_replay is not None and persist:
-        from orchestra.storage.events import EventType
-        from orchestra.storage.sqlite import SQLiteEventStore
-
-        async with SQLiteEventStore() as store:
-            events = await store.get_events(
-                result.run_id,
-                event_types=[EventType.LLM_CALLED],
-            )
-        lines = [json.dumps(e.model_dump(), default=str) for e in events]
-        record_replay.write_text("\n".join(lines), encoding="utf-8")
-        typer.echo(f"Recorded {len(lines)} LLM calls → {record_replay}")
-
+    """Run the graph; if record_replay is set, wrap provider and flush JSONL on completion."""
+    if record_replay is not None:
+        recording = _RecordingProvider(provider, record_replay)
+        result = await run_graph(graph, input=initial, provider=recording, persist=False)
+        recording.flush()
+    else:
+        result = await run_graph(graph, input=initial, provider=provider, persist=persist)
     return result
 
 
@@ -139,8 +181,17 @@ def main(
                 github_url = stripped
                 break
 
-    if local:
-        provider = _resolve_provider(env, replay, local=True)
+    # --record-replay always uses GeminiCli (real LLM) with Fake* adapters so we
+    # can capture responses from a local packet without real Drive/Sheets/BQ creds.
+    effective_local = local or (record_replay is not None)
+
+    if effective_local:  # local adapters or recording run
+        if record_replay is not None:
+            # Recording: need real LLM, but Fake* adapters for outputs
+            from orchestra.providers.gemini_cli import GeminiCliProvider
+            provider = GeminiCliProvider()
+        else:
+            provider = _resolve_provider(env, replay, local=True)
         drive = FakeDriveAdapter()
         files = GeminiFilesAdapter()
         sheets = FakeSheetsAdapter()
@@ -185,9 +236,8 @@ def main(
         "subject_name": manifest.get("subject_name", ""),
         "packet_path": str(packet),
     }
-    persist = record_replay is not None
     result = asyncio.run(
-        _run_and_maybe_record(graph, initial, provider, persist, record_replay)
+        _run_and_maybe_record(graph, initial, provider, persist=True, record_replay=record_replay)
     )
     state = result.state
     payload = {
