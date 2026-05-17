@@ -28,6 +28,7 @@ from orchestra.core.types import END, AgentResult, LLMResponse, Message, Message
 from orchestra_tprm.agents.base import safe_specialist
 from orchestra_tprm.agents.coordinator import Coordinator
 from orchestra_tprm.agents.intake import intake_node
+from orchestra_tprm.agents.pmi_planner import PMIPlannerAgent
 from orchestra_tprm.agents.policy import PolicyAgent
 from orchestra_tprm.agents.specialists.code import CodeAgent
 from orchestra_tprm.agents.specialists.external import ExternalAgent
@@ -352,6 +353,86 @@ def _classify_no_llm(
 
 
 # ---------------------------------------------------------------------------
+# VDR Completeness Gate -- M&A-mode pre-flight check.
+# Categorises each document in packet_manifest against the standard DRL
+# (Document Request List) categories and emits informational findings for
+# missing categories. Does NOT block the run -- always returns a state
+# patch that prepends warning findings.
+# ---------------------------------------------------------------------------
+
+_DRL_CATEGORIES = (
+    "financial_statements",
+    "legal_corporate",
+    "ip_assignments",
+    "security_pentest",
+    "cap_table",
+    "tax_returns",
+)
+
+_DRL_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "financial_statements": ("financial", "10-k", "10k", "income", "balance-sheet", "p&l", "annual"),
+    "legal_corporate":      ("articles", "bylaws", "incorporation", "corporate", "minutes", "consent"),
+    "ip_assignments":       ("ip-assignment", "ip_assignment", "patent", "trademark", "copyright", "invention"),
+    "security_pentest":     ("pentest", "pen-test", "penetration", "soc2", "soc-2", "iso27001", "iso-27001"),
+    "cap_table":            ("cap-table", "captable", "cap_table", "shareholder", "equity-grant", "option-grant"),
+    "tax_returns":          ("tax-return", "tax_return", "1120", "k-1", "form-1120", "irs"),
+}
+
+
+def _vdr_completeness_check(manifest: list[dict[str, Any]]) -> list[Finding]:
+    """Return informational Findings for missing DRL categories.
+
+    Each manifest entry's `path` and `kind` fields are matched (case-insensitive
+    substring) against the keyword table above. Missing categories produce one
+    Finding each with severity='low', workstream='legal', ic_decision='post-close-monitoring'.
+    """
+    present: set[str] = set()
+    for entry in manifest:
+        path = str(entry.get("path", "")).lower()
+        kind = str(entry.get("kind", "")).lower()
+        haystack = f"{path}|{kind}"
+        for category, keywords in _DRL_KEYWORDS.items():
+            if any(kw in haystack for kw in keywords):
+                present.add(category)
+
+    missing = [c for c in _DRL_CATEGORIES if c not in present]
+    findings: list[Finding] = []
+    for category in missing:
+        findings.append(
+            Finding(
+                agent="VDRGate",
+                category=f"vdr-missing-{category.replace('_', '-')}",
+                severity="low",
+                summary=(
+                    f"VDR completeness gate: missing document category "
+                    f"'{category}' -- monitor post-close for follow-up requests."
+                ),
+                workstream="legal",
+                ic_decision="post-close-monitoring",
+            )
+        )
+    return findings
+
+
+def _make_vdr_gate_shim() -> BaseAgent:
+    class _VDRGateShim(BaseAgent):
+        name: str = "VDRGate"
+
+        async def run(self, input: Any, context: ExecutionContext) -> AgentResult:  # type: ignore[override]
+            state = input if isinstance(input, dict) else (context.state or {})
+            manifest = state.get("packet_manifest", []) or []
+            missing = _vdr_completeness_check(manifest)
+            return AgentResult(
+                agent_name=self.name,
+                state_updates={
+                    "findings": [f.model_dump() for f in missing]
+                },
+            )
+
+    return _VDRGateShim()
+
+
+# ---------------------------------------------------------------------------
 # Specialist shim -- wraps a BaseTPRMAgent so it conforms to BaseAgent.run.
 # ---------------------------------------------------------------------------
 
@@ -417,6 +498,18 @@ def _make_coordinator_shim(coord: Coordinator) -> BaseAgent:
             return AgentResult(agent_name=self.name, state_updates=update)
 
     return _CoordShim()
+
+
+def _make_pmi_planner_shim(planner: PMIPlannerAgent) -> BaseAgent:
+    class _PMIPlannerShim(BaseAgent):
+        name: str = "PMIPlannerAgent"
+
+        async def run(self, input: Any, context: ExecutionContext) -> AgentResult:  # type: ignore[override]
+            state = input if isinstance(input, dict) else (context.state or {})
+            update = await planner(state, ctx=context)
+            return AgentResult(agent_name=self.name, state_updates=update)
+
+    return _PMIPlannerShim()
 
 
 # ---------------------------------------------------------------------------
@@ -570,8 +663,41 @@ def build_graph(
     # --- Wire edges -------------------------------------------------------
     g.set_entry_point("bootstrap")
     g.add_edge("bootstrap", "intake")
-    g.add_edge("intake", "router")
+
+    if cfg.output_kind == "doc":
+        # M&A mode: insert VDR completeness gate between intake and router
+        g.add_node(
+            "vdr_gate",
+            AgentNode(
+                agent=_make_vdr_gate_shim(),
+                map_output=True,
+                input_mapper=lambda s: s,
+            ),
+            output_key="findings",
+        )
+        g.add_edge("intake", "vdr_gate")
+        g.add_edge("vdr_gate", "router")
+    else:
+        g.add_edge("intake", "router")
+
     g.add_parallel("router", specialist_node_ids, join_node="policy")
     g.add_edge("policy", "coordinator")
-    g.add_edge("coordinator", END)
+
+    if cfg.output_kind == "doc":
+        # M&A mode: PMI planner runs after coordinator
+        pmi_planner = PMIPlannerAgent(model=cfg.coordinator_model)
+        g.add_node(
+            "pmi_planner",
+            AgentNode(
+                agent=_make_pmi_planner_shim(pmi_planner),
+                map_output=True,
+                input_mapper=lambda s: s,
+            ),
+            output_key="pmi_plan",
+        )
+        g.add_edge("coordinator", "pmi_planner")
+        g.add_edge("pmi_planner", END)
+    else:
+        g.add_edge("coordinator", END)
+
     return g.compile()
