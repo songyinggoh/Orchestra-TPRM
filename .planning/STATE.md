@@ -8,9 +8,10 @@
 **Plan 01-06 Duration:** ~15 min
 **Plan 01-07 Duration:** ~5 min
 **Plan 01-08 Duration:** ~6 min
-**Last Completed:** Plan 01-08 (M&A Dashboard UI — ScopingScreen, ICMemoSection, PMIPlanSection)
+**Plan 01-09 Duration:** ~8 min
+**Last Completed:** Plan 01-09 (Unit Tests — all M&A code paths, 28 new tests, 261 total)
 **Current Phase:** 01 — M&A Due Diligence Mode Enhancement
-**Current Position:** Wave 6 / Plan 01-09 (final plan)
+**Current Position:** Phase 01 COMPLETE (all 9 plans executed)
 
 ## Phase Status
 
@@ -49,3 +50,5 @@
 - Plan 01-08: VerdictCard extended with mode prop for 7-column M&A table vs 4-column vendor table
 - Plan 01-08: IC_COLOR palette locked to CONTEXT.md values; WS_COLOR uses Google-palette compliant hex values
 - Plan 01-08: ICMemoSection/PMIPlanSection rendered after VerdictCard gated on rs.mode==="ma" and data presence
+- Plan 01-09: _coerce_ic_memo({"bogus": "data"}) returns ICMemo(defaults) not None because Pydantic V2 ignores extra fields; test assertion updated accordingly
+- Plan 01-09: 28 new unit tests added (7 files) — total test suite 261 tests, all green

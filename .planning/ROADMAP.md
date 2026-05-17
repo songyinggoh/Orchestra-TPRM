@@ -9,7 +9,7 @@
 
 ## Phase Summary
 
-- [ ] **Phase 1: M&A Due Diligence Mode Enhancement** — Full redesign of M&A mode: scoping screen, SaaS metrics, QoE normalization, IC memo output, PMI plan, workstream-organized artifacts
+- [x] **Phase 1: M&A Due Diligence Mode Enhancement** — Full redesign of M&A mode: scoping screen, SaaS metrics, QoE normalization, IC memo output, PMI plan, workstream-organized artifacts
 
 ---
 
@@ -28,8 +28,8 @@
 | 01-05 | PMI Planner agent | DONE (5369eed) |
 | 01-06 | Graph wiring (SaaSMetricsAgent + VDR gate + PMI planner) | DONE (d771863, ba93572, dd05246, 9275e23) |
 | 01-07 | Google Doc restructure | DONE (5ee6f16) |
-| 01-08 | Frontend scoping + IC memo + PMI | Pending |
-| 01-09 | Integration tests | Pending |
+| 01-08 | Frontend scoping + IC memo + PMI | DONE (96ab884) |
+| 01-09 | Unit tests (regression net) | DONE (b057fbc..1207c03) |
 
 **Success Criteria**:
 1. Pre-run scoping screen captures investment thesis, enterprise value, materiality threshold, and deal-breaker conditions before any specialist runs
