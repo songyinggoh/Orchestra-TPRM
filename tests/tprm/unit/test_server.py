@@ -34,6 +34,47 @@ async def _noop_graph_task(run_id, queue, mode, subject_name, packet_path, drive
 _MOCK_TASK = "orchestra_tprm.server.app._execute_graph_task"
 
 
+def _collect_sse_events(run_id: str) -> list[dict]:
+    """Stream /events/{run_id} to completion and return parsed event dicts."""
+    import json
+    events = []
+    with client.stream("GET", f"/events/{run_id}") as resp:
+        for line in resp.iter_lines():
+            if line.startswith("data: "):
+                try:
+                    events.append(json.loads(line[len("data: "):]))
+                except json.JSONDecodeError:
+                    pass
+    return events
+
+
+async def _verdict_graph_task(run_id, queue, mode, subject_name, packet_path, drive_folder_url=None, ma_scope=None):
+    """Stub that emits a full verdict event then closes."""
+    import json
+    queue.put_nowait(f'data: {json.dumps({"type": "started", "run_id": run_id})}\n\n')
+    queue.put_nowait(f'data: {json.dumps({"type": "verdict", "policy_verdict": "pass", "risk_score": 10, "findings_count": 0, "findings": [], "verdict_doc_id": "", "verdict_local_path": "", "ic_memo": None, "pmi_plan": None})}\n\n')
+    queue.put_nowait(f'data: {json.dumps({"type": "done", "run_id": run_id})}\n\n')
+    queue.put_nowait(None)
+
+
+async def _ma_verdict_graph_task(run_id, queue, mode, subject_name, packet_path, drive_folder_url=None, ma_scope=None):
+    """Stub that emits a verdict with ic_memo and pmi_plan fields."""
+    import json
+    ic_memo = {"executive_summary": "Low risk", "headline_terms": "Proceed", "recommendation": "proceed", "risk_register": []}
+    pmi_plan = {"summary": "Standard integration", "items": [{"workstream": "tech", "action": "SSO setup", "deadline_tier": "day-60", "owner": "IT", "dependency": None}]}
+    queue.put_nowait(f'data: {json.dumps({"type": "verdict", "policy_verdict": "pass", "risk_score": 5, "findings_count": 0, "findings": [], "verdict_doc_id": "", "verdict_local_path": "", "ic_memo": ic_memo, "pmi_plan": pmi_plan})}\n\n')
+    queue.put_nowait(f'data: {json.dumps({"type": "done", "run_id": run_id})}\n\n')
+    queue.put_nowait(None)
+
+
+async def _failing_graph_task(run_id, queue, mode, subject_name, packet_path, drive_folder_url=None, ma_scope=None):
+    """Stub that simulates a graph exception — error + done must both fire."""
+    import json
+    queue.put_nowait(f'data: {json.dumps({"type": "error", "message": "simulated graph failure"})}\n\n')
+    queue.put_nowait(f'data: {json.dumps({"type": "done", "run_id": run_id})}\n\n')
+    queue.put_nowait(None)
+
+
 # ── Tests ─────────────────────────────────────────────────────────────────────
 
 
@@ -173,3 +214,101 @@ def test_run_endpoint_rejects_path_traversal() -> None:
     )
     assert response.status_code == 400
     assert "escapes" in response.json().get("detail", "").lower()
+
+
+# ── SSE stream contract tests ──────────────────────────────────────────────────
+# These pin the server-side guarantee that prevents the "Connection lost" false
+# positive: the stream must always emit `done` as the final event before closing,
+# so the frontend can distinguish a clean close from a real network failure.
+
+
+@patch(_MOCK_TASK, new=_verdict_graph_task)
+@patch(_PACKET_ROOT_PATCH, Path("/tmp").resolve())
+def test_sse_stream_emits_verdict_before_done() -> None:
+    """verdict event must appear in the stream before the done event."""
+    run_id = client.post(
+        "/run", json={"mode": "vendor", "subject_name": "X", "packet_path": "/tmp/x"}
+    ).json()["run_id"]
+
+    events = _collect_sse_events(run_id)
+    types = [e["type"] for e in events]
+
+    assert "verdict" in types
+    assert "done" in types
+    assert types.index("verdict") < types.index("done"), "verdict must precede done"
+
+
+@patch(_MOCK_TASK, new=_verdict_graph_task)
+@patch(_PACKET_ROOT_PATCH, Path("/tmp").resolve())
+def test_sse_stream_done_is_last_event_on_success() -> None:
+    """done must be the final typed event — nothing follows it before stream closes."""
+    run_id = client.post(
+        "/run", json={"mode": "vendor", "subject_name": "X", "packet_path": "/tmp/x"}
+    ).json()["run_id"]
+
+    events = _collect_sse_events(run_id)
+    typed = [e for e in events if "type" in e]
+    assert typed[-1]["type"] == "done"
+
+
+@patch(_MOCK_TASK, new=_failing_graph_task)
+@patch(_PACKET_ROOT_PATCH, Path("/tmp").resolve())
+def test_sse_stream_done_fires_even_on_graph_error() -> None:
+    """done must appear even when the graph raises — it is sent in the finally block."""
+    run_id = client.post(
+        "/run", json={"mode": "vendor", "subject_name": "X", "packet_path": "/tmp/x"}
+    ).json()["run_id"]
+
+    events = _collect_sse_events(run_id)
+    types = [e["type"] for e in events]
+
+    assert "error" in types, "error event must be emitted on graph failure"
+    assert "done" in types, "done event must always fire (finally block guarantee)"
+    assert types.index("error") < types.index("done"), "error must precede done"
+
+
+@patch(_MOCK_TASK, new=_failing_graph_task)
+@patch(_PACKET_ROOT_PATCH, Path("/tmp").resolve())
+def test_sse_stream_error_event_includes_message() -> None:
+    """error event must carry a non-empty message field."""
+    run_id = client.post(
+        "/run", json={"mode": "vendor", "subject_name": "X", "packet_path": "/tmp/x"}
+    ).json()["run_id"]
+
+    events = _collect_sse_events(run_id)
+    error_events = [e for e in events if e.get("type") == "error"]
+
+    assert error_events, "at least one error event expected"
+    assert error_events[0].get("message"), "error event must have a non-empty message"
+
+
+@patch(_MOCK_TASK, new=_ma_verdict_graph_task)
+@patch(_PACKET_ROOT_PATCH, Path("/tmp").resolve())
+def test_sse_verdict_contains_ic_memo_for_ma_mode() -> None:
+    """verdict event for M&A runs must include ic_memo field."""
+    run_id = client.post(
+        "/run", json={"mode": "ma", "subject_name": "TargetCorp", "packet_path": "/tmp/x"}
+    ).json()["run_id"]
+
+    events = _collect_sse_events(run_id)
+    verdict = next((e for e in events if e.get("type") == "verdict"), None)
+
+    assert verdict is not None, "verdict event must be present"
+    assert "ic_memo" in verdict, "verdict must carry ic_memo for M&A mode"
+    assert verdict["ic_memo"] is not None
+
+
+@patch(_MOCK_TASK, new=_ma_verdict_graph_task)
+@patch(_PACKET_ROOT_PATCH, Path("/tmp").resolve())
+def test_sse_verdict_contains_pmi_plan_for_ma_mode() -> None:
+    """verdict event for M&A runs must include pmi_plan field."""
+    run_id = client.post(
+        "/run", json={"mode": "ma", "subject_name": "TargetCorp", "packet_path": "/tmp/x"}
+    ).json()["run_id"]
+
+    events = _collect_sse_events(run_id)
+    verdict = next((e for e in events if e.get("type") == "verdict"), None)
+
+    assert verdict is not None
+    assert "pmi_plan" in verdict, "verdict must carry pmi_plan for M&A mode"
+    assert verdict["pmi_plan"] is not None

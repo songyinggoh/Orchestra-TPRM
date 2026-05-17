@@ -1173,10 +1173,14 @@ export default function App() {
       };
 
       es.onerror = () => {
-        timerRef.current && clearInterval(timerRef.current!);
-        setRunState((prev) => prev ? {
-          ...prev, phase: "error", error: "Connection lost",
-        } : prev);
+        setRunState((prev) => {
+          // Server closes the connection after sending "done" — that triggers
+          // onerror in some browsers even on a clean close. Ignore it if the
+          // run already reached a terminal state.
+          if (!prev || prev.phase === "done" || prev.phase === "error") return prev;
+          timerRef.current && clearInterval(timerRef.current!);
+          return { ...prev, phase: "error", error: "Connection lost" };
+        });
         es.close();
       };
     } catch (err) {
