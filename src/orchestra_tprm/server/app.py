@@ -48,14 +48,17 @@ _runs: dict[str, dict[str, Any]] = {}
 _NODE_LABELS: dict[str, str] = {
     "bootstrap_node": "Bootstrap",
     "intake_node": "Document Intake",
+    "vdr_gate": "VDR Completeness Gate",
     "router": "Document Router",
     "LegalAgent": "Legal Specialist",
     "SecurityAgent": "Security Specialist",
     "ExternalAgent": "External Intelligence",
     "CodeAgent": "Code Scanner",
     "FinancialAgent": "Financial Analyst",
+    "SaaSMetricsAgent": "SaaS Metrics",
     "policy": "Policy Engine",
     "coordinator": "Report Coordinator",
+    "pmi_planner": "PMI Planner",
 }
 
 # Vendor-mode node order (for progress display)
@@ -64,7 +67,12 @@ _VENDOR_PIPELINE = [
     "LegalAgent", "SecurityAgent", "ExternalAgent", "CodeAgent",
     "policy", "coordinator",
 ]
-_MA_PIPELINE = _VENDOR_PIPELINE[:-3] + ["FinancialAgent"] + _VENDOR_PIPELINE[-3:]
+_MA_PIPELINE = [
+    "bootstrap_node", "intake_node", "vdr_gate", "router",
+    "LegalAgent", "SecurityAgent", "ExternalAgent", "CodeAgent",
+    "FinancialAgent", "SaaSMetricsAgent",
+    "policy", "coordinator", "pmi_planner",
+]
 
 
 def _sse(event_type: str, data: dict[str, Any]) -> str:
@@ -257,6 +265,8 @@ async def _execute_graph_task(
             "findings": findings,
             "verdict_doc_id": final_state.get("verdict_doc_id", ""),
             "verdict_local_path": final_state.get("verdict_local_path", ""),
+            "ic_memo": final_state.get("ic_memo"),
+            "pmi_plan": final_state.get("pmi_plan"),
         }))
 
     except Exception as exc:
