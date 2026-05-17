@@ -71,13 +71,22 @@ def _convert(node: Any, defs: dict[str, Any]) -> Any:
         else:
             out[k] = v
 
-    # Gemini does not support tuple types (prefixItems). Convert to array with
-    # items taken from the first prefixItem's type (all items assumed homogeneous).
+    # Gemini does not support tuple types (prefixItems). Convert to a flat array
+    # using the shared item type.  Validate that all prefix items are homogeneous
+    # (same JSON-schema type) before proceeding — heterogeneous tuples cannot be
+    # expressed in Gemini's schema subset.
     if "prefixItems" in out or "prefixItems" in node:
         prefix = node.get("prefixItems", [])
-        item_schema: dict[str, Any] = {}
-        if prefix:
-            item_schema = _convert(prefix[0], defs)
+        if len(prefix) < 2:
+            raise GeminiSchemaError(
+                f"prefixItems tuple must have at least 2 elements, got {prefix!r}"
+            )
+        types = {p.get("type") for p in prefix if isinstance(p, dict)}
+        if len(types) > 1:
+            raise GeminiSchemaError(
+                f"Heterogeneous prefixItems tuple cannot be expressed in Gemini schema: {prefix!r}"
+            )
+        item_schema: dict[str, Any] = _convert(prefix[0], defs) if prefix else {}
         out.pop("prefixItems", None)
         out["type"] = "array"
         if item_schema:
