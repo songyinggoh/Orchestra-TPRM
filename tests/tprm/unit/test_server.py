@@ -105,3 +105,49 @@ def test_run_returns_unique_ids() -> None:
         )
         ids.add(r.json()["run_id"])
     assert len(ids) == 3
+
+
+@patch(_MOCK_TASK, new=_noop_graph_task)
+def test_run_endpoint_accepts_ma_scope() -> None:
+    """POST /run with ma_scope should be accepted (200), not rejected."""
+    response = client.post(
+        "/run",
+        json={
+            "mode": "ma",
+            "subject_name": "TargetCorp",
+            "packet_path": "/tmp/target",
+            "ma_scope": {
+                "investment_thesis": "SaaS consolidation play",
+                "enterprise_value_usd": 50_000_000,
+                "materiality_threshold_usd": 1_000_000,
+                "deal_breakers": ["going-concern"],
+                "active_workstreams": ["financial", "tech", "legal"],
+            },
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["status"] == "accepted"
+
+
+@patch(_MOCK_TASK, new=_noop_graph_task)
+def test_run_endpoint_accepts_ma_mode_without_scope() -> None:
+    """ma_scope is optional — omitting it must still succeed."""
+    response = client.post(
+        "/run",
+        json={"mode": "ma", "subject_name": "TargetCorp", "packet_path": "/tmp/target"},
+    )
+    assert response.status_code == 200
+
+
+def test_run_endpoint_rejects_invalid_ma_scope_type() -> None:
+    """ma_scope must be a dict or null, not a string."""
+    response = client.post(
+        "/run",
+        json={
+            "mode": "ma",
+            "subject_name": "X",
+            "packet_path": "/tmp/x",
+            "ma_scope": "not-a-dict",
+        },
+    )
+    assert response.status_code == 422
