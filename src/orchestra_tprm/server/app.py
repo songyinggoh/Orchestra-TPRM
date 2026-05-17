@@ -13,6 +13,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import time
 import uuid
 from pathlib import Path
@@ -67,6 +68,15 @@ _MA_PIPELINE = _VENDOR_PIPELINE[:-3] + ["FinancialAgent"] + _VENDOR_PIPELINE[-3:
 
 def _sse(event_type: str, data: dict[str, Any]) -> str:
     return f"data: {json.dumps({'type': event_type, **data}, default=str)}\n\n"
+
+
+_DRIVE_FOLDER_RE = re.compile(r"/folders/([a-zA-Z0-9_-]+)")
+
+
+def _parse_drive_folder_id(url_or_id: str) -> str:
+    """Extract folder ID from a Drive URL, or return the value as-is if already an ID."""
+    m = _DRIVE_FOLDER_RE.search(url_or_id)
+    return m.group(1) if m else url_or_id.strip()
 
 
 def _build_provider(env: dict[str, str]) -> Any:
@@ -135,6 +145,7 @@ async def _execute_graph_task(
     mode: str,
     subject_name: str,
     packet_path: str,
+    drive_folder_url: str | None = None,
 ) -> None:
     """Background task: runs the TPRM graph and emits SSE events."""
     try:
@@ -158,6 +169,8 @@ async def _execute_graph_task(
         cfg = load_mode(mode)
         provider = _build_provider(env)
         adapters, sheet_id, doc_id, drive_folder_id = _build_adapters(env, mode)
+        if drive_folder_url:
+            drive_folder_id = _parse_drive_folder_id(drive_folder_url)
 
         # Read optional github_url from links.txt
         github_url = ""
@@ -259,6 +272,7 @@ class RunRequest(BaseModel):
     mode: Literal["vendor", "ma"]
     subject_name: str
     packet_path: str
+    drive_folder_url: str | None = None
 
 
 class RunResponse(BaseModel):
@@ -285,7 +299,10 @@ async def run_tprm(request: RunRequest) -> RunResponse:
     run_id = uuid.uuid4().hex
     queue: asyncio.Queue[str | None] = asyncio.Queue()
     task = asyncio.create_task(
-        _execute_graph_task(run_id, queue, request.mode, request.subject_name, request.packet_path)
+        _execute_graph_task(
+            run_id, queue, request.mode, request.subject_name,
+            request.packet_path, request.drive_folder_url,
+        )
     )
     _runs[run_id] = {
         "queue": queue,

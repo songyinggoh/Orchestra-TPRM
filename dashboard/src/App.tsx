@@ -229,6 +229,8 @@ export default function App() {
   const [mode, setMode] = useState<Mode>("vendor");
   const [subjectName, setSubjectName] = useState("Acme Cloud Analytics");
   const [packetPath, setPacketPath] = useState("examples/tprm/acme");
+  const [sourceType, setSourceType] = useState<"demo" | "drive">("demo");
+  const [driveFolderUrl, setDriveFolderUrl] = useState("");
   const [runState, setRunState] = useState<RunState | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -247,7 +249,12 @@ export default function App() {
       const res = await fetch("/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode, subject_name: subjectName, packet_path: packetPath }),
+        body: JSON.stringify({
+          mode,
+          subject_name: subjectName,
+          packet_path: sourceType === "demo" ? packetPath : "",
+          drive_folder_url: sourceType === "drive" ? driveFolderUrl : undefined,
+        }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: res.statusText }));
@@ -384,22 +391,13 @@ export default function App() {
 
             <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
               <div>
-                <label>Assessment Mode</label>
-                <select value={mode} onChange={(e) => {
-                  const m = e.target.value as Mode;
-                  setMode(m);
-                  if (m === "vendor") {
-                    setSubjectName("Acme Cloud Analytics");
-                    setPacketPath("examples/tprm/acme");
-                  } else {
-                    setSubjectName("HashiCorp Inc.");
-                    setPacketPath("examples/tprm/hashicorp");
-                  }
-                }}>
+                <label>Assessment Type</label>
+                <select value={mode} onChange={(e) => setMode(e.target.value as Mode)}>
                   <option value="vendor">Vendor Due Diligence</option>
                   <option value="ma">M&A Assessment</option>
                 </select>
               </div>
+
               <div>
                 <label>Subject Name</label>
                 <input
@@ -409,22 +407,74 @@ export default function App() {
                   placeholder="e.g. Acme Cloud Analytics"
                 />
               </div>
+
+              {/* Source selector */}
               <div>
-                <label>Packet Path</label>
-                <input
-                  type="text"
-                  value={packetPath}
-                  onChange={(e) => setPacketPath(e.target.value)}
-                  placeholder="e.g. examples/tprm/acme"
-                />
-                <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>
-                  Directory containing manifest.yaml and documents
+                <label style={{ marginBottom: 8, display: "block" }}>Document Source</label>
+                <div style={{ display: "flex", gap: 0, border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
+                  {(["demo", "drive"] as const).map((opt) => (
+                    <button
+                      key={opt}
+                      onClick={() => setSourceType(opt)}
+                      style={{
+                        flex: 1,
+                        padding: "9px 0",
+                        fontSize: 13,
+                        background: sourceType === opt ? "var(--accent)" : "var(--surface2)",
+                        color: sourceType === opt ? "#fff" : "var(--muted)",
+                        border: "none",
+                        borderRadius: 0,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {opt === "demo" ? "Demo packet" : "Google Drive folder"}
+                    </button>
+                  ))}
                 </div>
               </div>
 
+              {sourceType === "demo" ? (
+                <div>
+                  <label>Demo Preset</label>
+                  <select
+                    value={packetPath}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setPacketPath(val);
+                      if (val === "examples/tprm/acme") {
+                        setSubjectName("Acme Cloud Analytics");
+                        setMode("vendor");
+                      } else {
+                        setSubjectName("HashiCorp Inc.");
+                        setMode("ma");
+                      }
+                    }}
+                  >
+                    <option value="examples/tprm/acme">Acme Cloud Analytics — Vendor Due Diligence</option>
+                    <option value="examples/tprm/hashicorp">HashiCorp Inc. — M&amp;A Assessment</option>
+                  </select>
+                </div>
+              ) : (
+                <div>
+                  <label>Google Drive Folder URL</label>
+                  <input
+                    type="url"
+                    value={driveFolderUrl}
+                    onChange={(e) => setDriveFolderUrl(e.target.value)}
+                    placeholder="https://drive.google.com/drive/folders/…"
+                  />
+                  <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>
+                    Share the folder with your service account before running
+                  </div>
+                </div>
+              )}
+
               <button
                 onClick={startRun}
-                disabled={submitting || !subjectName || !packetPath}
+                disabled={
+                  submitting || !subjectName ||
+                  (sourceType === "demo" ? !packetPath : !driveFolderUrl)
+                }
                 style={{
                   background: "var(--accent)",
                   color: "#fff",
@@ -436,25 +486,6 @@ export default function App() {
               >
                 {submitting ? "Starting…" : "Run Assessment →"}
               </button>
-            </div>
-
-            {/* Quick demo buttons */}
-            <div style={{ marginTop: 32, borderTop: "1px solid var(--border)", paddingTop: 24 }}>
-              <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 12 }}>Quick demos</div>
-              <div style={{ display: "flex", gap: 10 }}>
-                <button
-                  onClick={() => { setMode("vendor"); setSubjectName("Acme Cloud Analytics"); setPacketPath("examples/tprm/acme"); }}
-                  style={{ background: "var(--surface2)", color: "var(--text)", fontSize: 12 }}
-                >
-                  Acme (Vendor)
-                </button>
-                <button
-                  onClick={() => { setMode("ma"); setSubjectName("HashiCorp Inc."); setPacketPath("examples/tprm/hashicorp"); }}
-                  style={{ background: "var(--surface2)", color: "var(--text)", fontSize: 12 }}
-                >
-                  HashiCorp (M&A)
-                </button>
-              </div>
             </div>
           </div>
         ) : (

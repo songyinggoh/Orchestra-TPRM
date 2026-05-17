@@ -19,39 +19,40 @@ Both numbers come from real Gemini 2.5 Flash runs recorded into `examples/tprm/*
 
 ## Quick start
 
-### Offline replay (no API keys, deterministic)
-
 ```bash
 git clone https://github.com/songyinggoh/Orchestra-TPRM.git
 cd Orchestra-TPRM
 pip install -e ".[tprm,server,storage,telemetry]"
-
-# Vendor demo — 27 findings, reject
-orchestra-tprm --mode vendor --packet examples/tprm/acme \
-  --local --replay examples/tprm/acme/replay.jsonl
-
-# M&A demo — 55 findings, reject
-orchestra-tprm --mode ma --packet examples/tprm/hashicorp \
-  --local --replay examples/tprm/hashicorp/replay.jsonl
 ```
 
-### Live run (Gemini CLI subscription or `GOOGLE_API_KEY`)
+**Terminal 1 — backend**
 
 ```bash
-# Auto-detects: Gemini CLI on PATH > GOOGLE_API_KEY env > local stub
-orchestra-tprm --mode vendor --packet examples/tprm/acme
-```
-
-### React dashboard with live SSE streaming
-
-```bash
-# Terminal 1: backend
 uvicorn orchestra_tprm.server.app:app --host 0.0.0.0 --port 8080
-
-# Terminal 2: frontend
-cd dashboard && npm install && npm run dev
-# Open http://localhost:3000
 ```
+
+**Terminal 2 — dashboard**
+
+```bash
+cd dashboard && npm install && npm run dev
+```
+
+Open **http://localhost:3000**, pick a demo preset (or paste a Google Drive folder URL), and click **Run Assessment**.
+
+No API keys needed for demos — the bundled replay packets replay pre-recorded Gemini responses deterministically.
+
+### Live run against real documents
+
+Set your Google credentials and point the dashboard at a Drive folder:
+
+```bash
+export GOOGLE_API_KEY=AIza...
+export GOOGLE_CLOUD_PROJECT=my-project
+```
+
+In the dashboard, select **Google Drive folder**, paste the folder URL (the service account must have Viewer access), enter the subject name, and run. The pipeline streams live progress via SSE and writes findings to BigQuery + a Google Sheet or Doc.
+
+See [docs/developer.md](./docs/developer.md) for CLI flags, replay recording, and local test modes.
 
 ## Architecture
 
@@ -136,28 +137,6 @@ GitHub Actions runs on every push/PR:
 - **tprm-test** — TPRM suite on Linux/Py3.12
 - **ui-build** — both the framework UI and the TPRM dashboard
 - **integration-test** — Postgres + Redis + NATS services
-
-## Provider resolution order
-
-The CLI picks the LLM backend in this order:
-
-1. `--replay <file.jsonl>` → deterministic offline replay
-2. `--local` (no replay) → `ScriptedLLM` stub for hermetic tests
-3. `GOOGLE_API_KEY` env var → `GoogleProvider` (AI Studio)
-4. `gemini` CLI on PATH → `GeminiCliProvider` (subscription)
-
-The dashboard mirrors this logic in `server/app.py`.
-
-## Replay recording
-
-Capture a live run to JSONL for deterministic replays in CI / demos:
-
-```bash
-orchestra-tprm --mode vendor --packet examples/tprm/acme \
-  --record-replay examples/tprm/acme/replay.jsonl
-```
-
-The `_RecordingProvider` wrapper intercepts `provider.complete()` calls and serializes them to the JSONL format documented in `src/orchestra/storage/events.py:LLMCalled`.
 
 ## Credits
 
