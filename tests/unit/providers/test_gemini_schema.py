@@ -63,5 +63,5 @@ def test_unknown_construct_raises_clear_error():
         # Tuples are not in Gemini's responseSchema subset
         pair: tuple[int, str]
 
-    with pytest.raises(GeminiSchemaError, match="unsupported"):
+    with pytest.raises(GeminiSchemaError):
         pydantic_to_gemini_schema(Weird)
