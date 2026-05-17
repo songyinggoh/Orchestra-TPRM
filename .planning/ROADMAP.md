@@ -25,7 +25,7 @@
 | 01-02 | FinancialAgent QoE + CodeAgent OSS | DONE (26651e7, 4a62317) |
 | 01-03 | PolicyAgent IC classification | DONE (cec952e) |
 | 01-04 | SaaSMetricsAgent | DONE (c09d5b8, bb1e41a) |
-| 01-05 | PMI Planner agent | Pending |
+| 01-05 | PMI Planner agent | DONE (5369eed) |
 | 01-06 | Coordinator wiring | Pending |
 | 01-07 | Google Doc restructure | Pending |
 | 01-08 | Frontend scoping + IC memo + PMI | Pending |

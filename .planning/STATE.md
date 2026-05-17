@@ -4,10 +4,10 @@
 **Code:** TPRM-MA
 **Status:** In Progress
 **Last Activity:** 2026-05-18
-**Plan 01-04 Duration:** ~3 min
-**Last Completed:** Plan 01-04 (SaaSMetricsAgent Specialist)
+**Plan 01-05 Duration:** ~3 min
+**Last Completed:** Plan 01-05 (PMIPlannerAgent callable agent)
 **Current Phase:** 01 — M&A Due Diligence Mode Enhancement
-**Current Position:** Wave 3 / Plan 01-05
+**Current Position:** Wave 3 / Plan 01-06
 
 ## Phase Status
 
@@ -33,3 +33,5 @@
 - Plan 01-03: ma_scope presence (not mode string) gates IC classification; vendor mode YAML verdict unchanged
 - Plan 01-04: No-docs fallback emits informational Finding (audit trail) rather than silent [] when VDR lacks financial docs
 - Plan 01-04: ic_decision clamping to known 4-value set prevents Pydantic validation errors from LLM label drift
+- Plan 01-05: PMIPlannerAgent uses callable-agent pattern (not BaseTPRMAgent subclass); unknown tiers clamped to day-100; unknown workstreams filtered out
+- Plan 01-05: Deterministic fallback encodes all 4 deadline tiers from CONTEXT.md without LLM dependency
