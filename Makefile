@@ -1,4 +1,30 @@
-.PHONY: install lint type-check test test-cov fmt clean
+PROJECT := advance-replica-496216-n6
+REGION  := us-central1
+IMAGE   := $(REGION)-docker.pkg.dev/$(PROJECT)/orchestra/tprm:latest
+
+# Build container image via Cloud Build (no local Docker daemon needed)
+build:
+	gcloud builds submit --project=$(PROJECT) --tag=$(IMAGE) --timeout=25m .
+
+# Provision infra + deploy (runs build first)
+deploy: build
+	cd terraform && terraform init -upgrade && terraform apply -auto-approve
+
+# Update Cloud Run to the latest image without re-running terraform
+redeploy: build
+	gcloud run deploy orchestra-tprm \
+	  --project=$(PROJECT) --region=$(REGION) \
+	  --image=$(IMAGE) --platform=managed
+
+# Tear everything down
+destroy:
+	cd terraform && terraform destroy
+
+# Print the live URL
+url:
+	@cd terraform && terraform output -raw url
+
+.PHONY: install lint type-check test test-cov fmt clean build deploy redeploy destroy url
 
 install:
 	pip install -e ".[dev]"
