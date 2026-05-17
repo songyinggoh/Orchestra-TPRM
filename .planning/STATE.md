@@ -6,9 +6,10 @@
 **Last Activity:** 2026-05-18
 **Plan 01-05 Duration:** ~3 min
 **Plan 01-06 Duration:** ~15 min
-**Last Completed:** Plan 01-06 (Graph wiring: SaaSMetricsAgent + VDR gate + PMI planner)
+**Plan 01-07 Duration:** ~5 min
+**Last Completed:** Plan 01-07 (Coordinator Google Doc 6-section layout restructure)
 **Current Phase:** 01 — M&A Due Diligence Mode Enhancement
-**Current Position:** Wave 4 / Plan 01-07
+**Current Position:** Wave 5 / Plan 01-08
 
 ## Phase Status
 
@@ -40,3 +41,6 @@
 - Plan 01-06: VDR gate uses keyword-match strategy (path|kind haystack) for 6 DRL categories; emits low-severity informational findings only
 - Plan 01-06: ma_scope propagation was already present from Plan 01-01; Task 3 verified and extended SSE verdict event with ic_memo + pmi_plan
 - Plan 01-06: Integration test scripted LLM needed 10 responses (router + 6 parallel specialists + coordinator + pmi_planner + FinancialAgent QoE second call)
+- Plan 01-07: LLM narrative scoped to Executive Summary only; all other 5 sections rendered from structured state (ic_memo, pmi_plan, findings)
+- Plan 01-07: Workstream Reports alphabetically ordered; top-3 findings per section by severity; findings without workstream tag grouped under 'general'
+- Plan 01-07: PMI tier canonical order: day-30 -> day-60 -> day-100 -> day-180 (encoded in _PMI_TIER_ORDER tuple)
