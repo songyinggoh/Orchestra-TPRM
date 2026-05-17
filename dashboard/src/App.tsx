@@ -602,6 +602,285 @@ function VerdictCard({ data }: { data: VerdictData }) {
   );
 }
 
+// ── ScopingScreen (M&A only) ──────────────────────────────────────────────────
+
+function ScopingScreen({
+  value,
+  onChange,
+  onConfirm,
+  onSkip,
+}: {
+  value: MAScope;
+  onChange: (v: MAScope) => void;
+  onConfirm: () => void;
+  onSkip: () => void;
+}) {
+  const [breakerInput, setBreakerInput] = useState("");
+
+  function toggleWorkstream(ws: string) {
+    const next = value.active_workstreams.includes(ws)
+      ? value.active_workstreams.filter((w) => w !== ws)
+      : [...value.active_workstreams, ws];
+    onChange({ ...value, active_workstreams: next });
+  }
+
+  function addBreaker() {
+    const trimmed = breakerInput.trim();
+    if (!trimmed) return;
+    if (value.deal_breakers.includes(trimmed)) {
+      setBreakerInput("");
+      return;
+    }
+    onChange({ ...value, deal_breakers: [...value.deal_breakers, trimmed] });
+    setBreakerInput("");
+  }
+
+  function removeBreaker(b: string) {
+    onChange({ ...value, deal_breakers: value.deal_breakers.filter((x) => x !== b) });
+  }
+
+  // Default materiality = 2% of EV when EV present and threshold not set
+  const computedMateriality = value.materiality_threshold_usd
+    ?? (value.enterprise_value_usd ? Math.round(value.enterprise_value_usd * 0.02) : undefined);
+
+  return (
+    <section
+      style={{
+        background: "var(--md-sys-color-surface)",
+        border: "1px solid var(--md-sys-color-outline)",
+        borderRadius: "var(--md-sys-shape-large)",
+        padding: "var(--space-xl)",
+        marginBottom: "var(--space-lg)",
+        boxShadow: "var(--md-sys-elevation-1)",
+      }}
+    >
+      <header style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)", marginBottom: "var(--space-md)" }}>
+        <span className="material-symbols-outlined" style={{ fontSize: 20, color: "var(--md-sys-color-primary)", fontVariationSettings: "'FILL' 1, 'wght' 400" }}>
+          fact_check
+        </span>
+        <h2 style={{ margin: 0, fontSize: 18, fontWeight: 500, color: "var(--md-sys-color-on-surface)" }}>
+          M&amp;A Deal Scoping
+        </h2>
+      </header>
+
+      {/* Investment thesis */}
+      <label style={{ display: "block", marginBottom: "var(--space-md)" }}>
+        <span style={{ display: "block", fontSize: 12, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--md-sys-color-on-surface-variant)", marginBottom: "var(--space-xs)" }}>
+          Investment Thesis
+        </span>
+        <textarea
+          value={value.investment_thesis}
+          onChange={(e) => onChange({ ...value, investment_thesis: e.target.value })}
+          rows={3}
+          style={{
+            width: "100%",
+            padding: "var(--space-sm)",
+            border: "1px solid var(--md-sys-color-outline)",
+            borderRadius: "var(--md-sys-shape-small)",
+            background: "var(--md-sys-color-surface)",
+            color: "var(--md-sys-color-on-surface)",
+            fontSize: 14,
+            fontFamily: "inherit",
+            resize: "vertical",
+          }}
+          placeholder="e.g. SaaS consolidation play; acquire vertical-specific competitor for cross-sell"
+        />
+      </label>
+
+      {/* EV + Materiality side by side */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-md)", marginBottom: "var(--space-md)" }}>
+        <label>
+          <span style={{ display: "block", fontSize: 12, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--md-sys-color-on-surface-variant)", marginBottom: "var(--space-xs)" }}>
+            Enterprise Value (USD)
+          </span>
+          <input
+            type="number"
+            value={value.enterprise_value_usd ?? ""}
+            onChange={(e) => onChange({ ...value, enterprise_value_usd: e.target.value ? Number(e.target.value) : undefined })}
+            placeholder="50000000"
+            style={{
+              width: "100%",
+              padding: "var(--space-sm)",
+              border: "1px solid var(--md-sys-color-outline)",
+              borderRadius: "var(--md-sys-shape-small)",
+              background: "var(--md-sys-color-surface)",
+              color: "var(--md-sys-color-on-surface)",
+              fontSize: 14,
+              fontFamily: "inherit",
+            }}
+          />
+        </label>
+        <label>
+          <span style={{ display: "block", fontSize: 12, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--md-sys-color-on-surface-variant)", marginBottom: "var(--space-xs)" }}>
+            Materiality Threshold (USD)
+            {value.enterprise_value_usd && !value.materiality_threshold_usd ? (
+              <span style={{ fontSize: 11, color: "var(--md-sys-color-primary)", marginLeft: 6, textTransform: "none", letterSpacing: 0 }}>
+                (default 2% of EV = ${computedMateriality?.toLocaleString()})
+              </span>
+            ) : null}
+          </span>
+          <input
+            type="number"
+            value={value.materiality_threshold_usd ?? ""}
+            onChange={(e) => onChange({ ...value, materiality_threshold_usd: e.target.value ? Number(e.target.value) : undefined })}
+            placeholder={computedMateriality?.toString() ?? "1000000"}
+            style={{
+              width: "100%",
+              padding: "var(--space-sm)",
+              border: "1px solid var(--md-sys-color-outline)",
+              borderRadius: "var(--md-sys-shape-small)",
+              background: "var(--md-sys-color-surface)",
+              color: "var(--md-sys-color-on-surface)",
+              fontSize: 14,
+              fontFamily: "inherit",
+            }}
+          />
+        </label>
+      </div>
+
+      {/* Deal-breakers — tag input */}
+      <div style={{ marginBottom: "var(--space-md)" }}>
+        <span style={{ display: "block", fontSize: 12, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--md-sys-color-on-surface-variant)", marginBottom: "var(--space-xs)" }}>
+          Deal-Breaker Conditions
+        </span>
+        <div style={{ display: "flex", gap: "var(--space-xs)", marginBottom: "var(--space-xs)" }}>
+          <input
+            type="text"
+            value={breakerInput}
+            onChange={(e) => setBreakerInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addBreaker(); } }}
+            placeholder="e.g. going-concern, FCPA exposure"
+            style={{
+              flex: 1,
+              padding: "var(--space-sm)",
+              border: "1px solid var(--md-sys-color-outline)",
+              borderRadius: "var(--md-sys-shape-small)",
+              background: "var(--md-sys-color-surface)",
+              color: "var(--md-sys-color-on-surface)",
+              fontSize: 14,
+              fontFamily: "inherit",
+            }}
+          />
+          <button
+            type="button"
+            onClick={addBreaker}
+            style={{
+              padding: "var(--space-sm) var(--space-md)",
+              background: "var(--md-sys-color-primary-container)",
+              color: "var(--md-sys-color-on-primary-container)",
+              border: "none",
+              borderRadius: "var(--md-sys-shape-small)",
+              fontSize: 12,
+              fontWeight: 500,
+              cursor: "pointer",
+            }}
+          >
+            Add
+          </button>
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-xs)" }}>
+          {value.deal_breakers.map((b) => (
+            <span
+              key={b}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                padding: "var(--space-xs) var(--space-sm)",
+                background: `${IC_COLOR["deal-stopper"]}1a`,
+                border: `1px solid ${IC_COLOR["deal-stopper"]}4d`,
+                borderRadius: "var(--md-sys-shape-extra-small)",
+                fontSize: 12,
+                color: IC_COLOR["deal-stopper"],
+                fontWeight: 500,
+              }}
+            >
+              {b}
+              <button
+                type="button"
+                onClick={() => removeBreaker(b)}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: IC_COLOR["deal-stopper"], fontSize: 14, lineHeight: 1 }}
+                aria-label={`Remove ${b}`}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Workstream toggles */}
+      <div style={{ marginBottom: "var(--space-lg)" }}>
+        <span style={{ display: "block", fontSize: 12, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--md-sys-color-on-surface-variant)", marginBottom: "var(--space-xs)" }}>
+          Active Workstreams
+        </span>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-xs)" }}>
+          {DEFAULT_WORKSTREAMS.map((ws) => {
+            const active = value.active_workstreams.includes(ws);
+            const c = WS_COLOR[ws] ?? "var(--md-sys-color-on-surface-variant)";
+            return (
+              <button
+                type="button"
+                key={ws}
+                onClick={() => toggleWorkstream(ws)}
+                style={{
+                  padding: "var(--space-xs) var(--space-sm)",
+                  background: active ? `${c}1a` : "transparent",
+                  border: `1px solid ${active ? c + "4d" : "var(--md-sys-color-outline)"}`,
+                  borderRadius: "var(--md-sys-shape-extra-small)",
+                  fontSize: 12,
+                  color: active ? c : "var(--md-sys-color-on-surface-variant)",
+                  fontWeight: 500,
+                  cursor: "pointer",
+                  textTransform: "capitalize",
+                }}
+              >
+                {ws}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Buttons */}
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--space-sm)" }}>
+        <button
+          type="button"
+          onClick={onSkip}
+          style={{
+            padding: "var(--space-sm) var(--space-md)",
+            background: "transparent",
+            color: "var(--md-sys-color-on-surface-variant)",
+            border: "1px solid var(--md-sys-color-outline)",
+            borderRadius: "var(--md-sys-shape-small)",
+            fontSize: 14,
+            fontWeight: 500,
+            cursor: "pointer",
+          }}
+        >
+          Skip
+        </button>
+        <button
+          type="button"
+          onClick={onConfirm}
+          style={{
+            padding: "var(--space-sm) var(--space-md)",
+            background: "var(--md-sys-color-primary)",
+            color: "var(--md-sys-color-on-primary)",
+            border: "none",
+            borderRadius: "var(--md-sys-shape-small)",
+            fontSize: 14,
+            fontWeight: 500,
+            cursor: "pointer",
+          }}
+        >
+          Confirm Scope
+        </button>
+      </div>
+    </section>
+  );
+}
+
 // ── Main App ──────────────────────────────────────────────────────────────────
 
 export default function App() {
@@ -610,6 +889,12 @@ export default function App() {
   const [packetPath, setPacketPath] = useState("examples/tprm/acme");
   const [sourceType, setSourceType] = useState<"demo" | "drive">("demo");
   const [driveFolderUrl, setDriveFolderUrl] = useState("");
+  const [maScope, setMaScope] = useState<MAScope>({
+    investment_thesis: "",
+    deal_breakers: [],
+    active_workstreams: [...DEFAULT_WORKSTREAMS],
+  });
+  const [scopingComplete, setScopingComplete] = useState(false);
   const [runState, setRunState] = useState<RunState | null>(null);
   const [submitting, setSubmitting] = useState(false);
   // Hover state for "New Assessment" button in header
@@ -639,6 +924,7 @@ export default function App() {
           subject_name: subjectName,
           packet_path: sourceType === "demo" ? packetPath : "",
           drive_folder_url: sourceType === "drive" ? driveFolderUrl : undefined,
+          ma_scope: mode === "ma" ? maScope : undefined,
         }),
       });
       if (!res.ok) {
@@ -726,6 +1012,11 @@ export default function App() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  function changeMode(next: Mode) {
+    setMode(next);
+    setScopingComplete(false);
   }
 
   function reset() {
@@ -869,11 +1160,25 @@ export default function App() {
         }}
       >
         {!rs ? (
-          /* ── New Assessment Form ── */
+          /* ── New Assessment Form (+ M&A Scoping Screen) ── */
+          <div style={{ maxWidth: 520, margin: "var(--space-2xl) auto 0" }}>
+            {/* M&A Scoping Screen — shown before run when mode=ma and not yet confirmed */}
+            {mode === "ma" && !scopingComplete && (
+              <ScopingScreen
+                value={maScope}
+                onChange={setMaScope}
+                onConfirm={() => setScopingComplete(true)}
+                onSkip={() => {
+                  setMaScope({ investment_thesis: "", deal_breakers: [], active_workstreams: [...DEFAULT_WORKSTREAMS] });
+                  setScopingComplete(true);
+                }}
+              />
+            )}
+
+            {/* Run form — shown in vendor mode always, in M&A mode after scoping */}
+            {(mode === "vendor" || scopingComplete) && (
           <div
             style={{
-              maxWidth: 520,
-              margin: "var(--space-2xl) auto 0",
               background: "var(--md-sys-color-surface)",
               border: "1px solid var(--md-sys-color-outline)",
               borderRadius: "var(--md-sys-shape-large)",
@@ -907,7 +1212,7 @@ export default function App() {
               {/* Assessment Type */}
               <div>
                 <label htmlFor="assessment-type">Assessment Type</label>
-                <select id="assessment-type" value={mode} onChange={(e) => setMode(e.target.value as Mode)}>
+                <select id="assessment-type" value={mode} onChange={(e) => changeMode(e.target.value as Mode)}>
                   <option value="vendor">Vendor Due Diligence</option>
                   <option value="ma">M&A Assessment</option>
                 </select>
@@ -943,10 +1248,10 @@ export default function App() {
                       setPacketPath(val);
                       if (val === "examples/tprm/acme") {
                         setSubjectName("Acme Cloud Analytics");
-                        setMode("vendor");
+                        changeMode("vendor");
                       } else {
                         setSubjectName("HashiCorp Inc.");
-                        setMode("ma");
+                        changeMode("ma");
                       }
                     }}
                   >
@@ -1039,6 +1344,8 @@ export default function App() {
                 )}
               </button>
             </div>
+          </div>
+            )}
           </div>
         ) : (
           /* ── Run Dashboard ── */
