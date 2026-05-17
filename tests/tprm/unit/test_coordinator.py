@@ -18,7 +18,7 @@ from orchestra_tprm.adapters.docs import FakeDocsAdapter
 from orchestra_tprm.adapters.sheets import FakeSheetsAdapter
 from orchestra_tprm.agents.coordinator import Coordinator
 from orchestra_tprm.modes.config import load_mode
-from orchestra_tprm.schemas import Citation, Finding
+from orchestra_tprm.schemas import Citation, Finding, ICMemo, ICRiskItem, PMIItem, PMIPlan
 
 
 @pytest.mark.asyncio
@@ -79,8 +79,13 @@ async def test_vendor_coordinator_writes_sheet_and_local_csv(tmp_path: Path) -> 
 
 @pytest.mark.asyncio
 async def test_ma_coordinator_creates_doc_with_sections(tmp_path: Path) -> None:
-    """M&A mode creates a doc via FakeDocsAdapter when no ``doc_id`` is given,
-    and the body includes the deal-memo section headings."""
+    """M&A mode creates a doc via FakeDocsAdapter with the locked 6-section order.
+
+    The new _write_doc builds a deterministic sections dict from structured
+    state data (ic_memo, pmi_plan, findings). The LLM narrative supplies the
+    Executive Summary only; old free-text headings like 'Strategic Fit' are
+    no longer part of the output (replaced by structured workstream reports).
+    """
     cfg = load_mode("ma")
     docs = FakeDocsAdapter()
     coord = Coordinator(
@@ -95,30 +100,65 @@ async def test_ma_coordinator_creates_doc_with_sections(tmp_path: Path) -> None:
             category="change-of-control",
             severity="medium",
             summary="Change-of-control triggers acceleration of executive equity.",
+            workstream="legal",
+            ic_decision="SPA-protection",
         )
     ]
+    ic = ICMemo(
+        executive_summary="Conditional approve.",
+        headline_terms="SPA protection required for equity acceleration clause.",
+        recommendation="proceed",
+        risk_register=[
+            ICRiskItem(
+                finding_id="f1",
+                workstream="legal",
+                exposure_usd_range=(0, 2_000_000),
+                mitigation="indemnity",
+                probability="medium",
+            )
+        ],
+    )
+    pmi = PMIPlan(
+        summary="100-day integration roadmap.",
+        items=[
+            PMIItem(
+                workstream="legal",
+                action="Resolve equity acceleration clause",
+                deadline_tier="day-30",
+                owner="General Counsel",
+            )
+        ],
+    )
     state = {
         "subject_name": "HashiCorp",
         "findings": findings,
         "policy_verdict": "conditional-approve",
         "risk_score": 5.0,
+        "ic_memo": ic.model_dump(),
+        "pmi_plan": pmi.model_dump(),
     }
-    sections_json = (
-        '{"Executive Summary": "Conditional approve.",'
-        ' "Strategic Fit": "Strong fit.",'
-        ' "Financial Analysis": "Revenue growth solid.",'
-        ' "Technical Diligence": "BSL license risk.",'
-        ' "Risks": "Community fragmentation.",'
-        ' "Open Questions": "Retention since BSL?"}'
-    )
-    ctx = ExecutionContext(provider=ScriptedLLM([LLMResponse(content=sections_json)]))
+    # LLM returns a plain narrative for the Executive Summary
+    narrative = "Conditional approve — BSL license risk manageable via SPA."
+    ctx = ExecutionContext(provider=ScriptedLLM([LLMResponse(content=narrative)]))
     update = await coord(state, ctx=ctx)
 
     assert update["verdict_doc_id"], "Coordinator must populate verdict_doc_id"
     assert docs._docs, "FakeDocsAdapter received no create_doc call"
     body = "\n".join(next(iter(docs._docs.values())))
-    for heading in ("Executive Summary", "Strategic Fit", "Financial Analysis", "Risks"):
+    # Verify all 6 locked sections appear in the output body
+    for heading in (
+        "Executive Summary",
+        "IC Memo",
+        "Workstream Reports",
+        "Risk Register",
+        "PMI 100-Day Plan",
+        "Appendix: Full Findings",
+    ):
         assert heading in body, f"Section {heading!r} missing from deal memo body"
+    # Verify structured content rendered correctly
+    assert "PROCEED" in body, "IC recommendation should be uppercased in IC Memo section"
+    assert "DAY-30" in body, "PMI tier heading should appear in PMI section"
+    assert "indemnity" in body, "Risk register mitigation should appear"
 
 
 @pytest.mark.asyncio
