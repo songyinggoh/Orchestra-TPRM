@@ -194,15 +194,25 @@ class FinancialAgent(BaseTPRMAgent):
                 except json.JSONDecodeError:
                     qoe_items = []
 
-                # Extract summary if present
+                qoe_list = qoe_items if isinstance(qoe_items, list) else []
+
+                # Pass 1: locate the qoe_summary row to compute implied_multiple
+                # before emitting any adjustment findings (CR-06: avoids stale
+                # default when summary row appears after individual rows).
+                qoe_summary_item = next(
+                    (
+                        it for it in qoe_list
+                        if isinstance(it, dict) and it.get("adjustment") == "qoe_summary"
+                    ),
+                    None,
+                )
                 reported_ebitda = 0
                 qoe_adjusted_ebitda = 0
                 ebitda_delta = 0
-                for item in qoe_items if isinstance(qoe_items, list) else []:
-                    if item.get("adjustment") == "qoe_summary":
-                        reported_ebitda = int(item.get("reported_ebitda_usd") or 0)
-                        qoe_adjusted_ebitda = int(item.get("qoe_adjusted_ebitda_usd") or 0)
-                        ebitda_delta = int(item.get("delta_usd") or 0)
+                if qoe_summary_item is not None:
+                    reported_ebitda = int(qoe_summary_item.get("reported_ebitda_usd") or 0)
+                    qoe_adjusted_ebitda = int(qoe_summary_item.get("qoe_adjusted_ebitda_usd") or 0)
+                    ebitda_delta = int(qoe_summary_item.get("delta_usd") or 0)
 
                 # Compute implied multiple (cap at 20x, default 8x)
                 ev = ma_scope.enterprise_value_usd if ma_scope else None
@@ -212,8 +222,8 @@ class FinancialAgent(BaseTPRMAgent):
                     implied_multiple = 8.0
                 ebitda_chip_usd = int(abs(ebitda_delta) * implied_multiple)
 
-                # Emit one Finding per non-zero adjustment + a summary Finding
-                for item in qoe_items if isinstance(qoe_items, list) else []:
+                # Pass 2: emit one Finding per non-zero adjustment + a summary Finding
+                for item in qoe_list:
                     adjustment = item.get("adjustment", "qoe-adjustment")
                     if adjustment == "qoe_summary":
                         all_findings.append(
