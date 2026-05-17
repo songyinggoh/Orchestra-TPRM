@@ -20,8 +20,8 @@ def test_load_vendor_mode():
 def test_load_ma_mode():
     cfg = load_mode("ma")
     assert cfg.name == "ma"
-    assert cfg.specialists.legal == "gemini-2.5-pro"
-    assert cfg.specialists.financial == "gemini-2.5-pro"
+    assert cfg.specialists.legal == "gemini-2.5-flash"
+    assert cfg.specialists.financial == "gemini-2.5-flash"
     assert cfg.coordinator_template.endswith("coordinator_ma.tmpl")
     assert cfg.output_kind == "doc"
 

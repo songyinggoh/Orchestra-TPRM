@@ -6,15 +6,38 @@ calling real APIs during replay/forked phases.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterable
+from pathlib import Path
 from typing import Any
 
 from orchestra.core.types import LLMResponse, Message, TokenUsage, ToolCall
-from orchestra.storage.events import LLMCalled
+from orchestra.storage.events import AnyEvent, LLMCalled
 
 
 class ReplayProvider:
     """LLM Provider that 'plays back' recorded responses from history."""
+
+    @classmethod
+    def from_jsonl(cls, path: str) -> "ReplayProvider":
+        """Load a ReplayProvider from a JSONL recording file.
+
+        Each line must be a JSON-serialised WorkflowEvent.  Only LLMCalled
+        events are replayed; all others are silently skipped.
+        """
+        events: list[LLMCalled] = []
+        for line in Path(path).read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            data = json.loads(line)
+            try:
+                event = AnyEvent.model_validate(data)  # type: ignore[call-arg]
+                if isinstance(event, LLMCalled):
+                    events.append(event)
+            except Exception:
+                pass
+        return cls(events)
 
     def __init__(self, historical_events: Iterable[Any]) -> None:
         # Index LLMCalled events by their sequence/node if possible,

@@ -1,34 +1,20 @@
 # M&A due diligence policy — stricter thresholds than vendor onboarding.
+# PolicyAgent reads this file; no mode literals appear in agent code.
 
-risk_score_weights:
+weights:
   low: 1
   medium: 4
   high: 10
   critical: 25
 
-verdict_rules:
-  - id: critical_block
-    description: Any CRITICAL finding blocks the M&A deal.
-    condition:
-      severity: critical
-      min_count: 1
-    verdict: block
+verdict:
+  reject_if_any_critical: true   # any critical finding blocks the deal
+  reject_above: 29               # score > 29 (≥ 3× high) → block
+  conditional_above: 9           # score > 9 (≥ 1× high) → conditional
 
-  - id: high_block
-    description: Three or more HIGH findings block the deal.
-    condition:
-      severity: high
-      min_count: 3
-    verdict: block
-
-  - id: high_review
-    description: Any HIGH finding triggers manual review.
-    condition:
-      severity: high
-      min_count: 1
-    verdict: conditional
-
-  - id: approve
-    description: Default — conditional approval with diligence caveats.
-    condition: {}
-    verdict: conditional
+critical_categories:
+  - going-concern
+  - ip
+  - code-risk
+  - sql-injection
+  - ssrf

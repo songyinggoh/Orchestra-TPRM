@@ -1,0 +1,39 @@
+HASHICORP INC. — ANNUAL REPORT (10-K) EXCERPT
+Fiscal Year Ended January 31, 2024
+(FICTIONAL DOCUMENT — FOR DEMONSTRATION PURPOSES ONLY)
+
+BUSINESS
+Products: Terraform (IaC), Vault (secrets), Consul, Nomad.
+NRR declined: 135% (FY22) → 128% (FY23) → 114% (FY24).
+License change: Terraform BSL 1.1 (Aug 2023) triggered OpenTofu fork (Linux Foundation, 1.3M stars). Customer substitution risk is material.
+Customer concentration: Top customer = 4.8% of ARR (~$28M).
+
+RISK FACTORS
+§1 GOING CONCERN: Accumulated deficit $1.42B. Auditors noted SUBSTANTIAL DOUBT about ability to continue as going concern. Cash reserves $892M; burn rate $212M/yr.
+§2 IP RISK: Three HCL parser patents (US2021/0456783, US2022/0118923, US2022/0334521) have ambiguous founder-assignment carve-outs for "background IP." Outside counsel opinion is "below probable" but litigation possible.
+§3 REGULATORY: Vault deployed in UAE, India, Saudi Arabia without jurisdiction review. 9 of 14 UAE PDPL-non-compliant contracts unremediated as of filing date.
+§4 CHANGE-OF-CONTROL: Three top-10 customer contracts (~$34M ARR) allow 30-day termination upon acquisition. No consents obtained.
+
+FINANCIAL RESULTS
+Revenue: FY24 $583M (+18%), FY23 $494M (+33%), FY22 $321M (+53%). Decelerating.
+Gross margin: FY24 73.5%, FY23 79.1%, FY22 82.4%. 560 bps compression YoY.
+Operating loss: FY24 ($311M), FY23 ($291M). Widening in absolute terms.
+Cash burn: $212M in FY24. Runway ~4.2 years at current rate.
+Stock-based comp: $270M FY24 — exceeds non-GAAP operating loss.
+Unvested equity at close: $487M (avg vesting 2.8 yrs).
+
+MATERIAL WEAKNESS: Revenue recognition error ($4.2M recognized early in FY23, restated). Remediation NOT complete as of filing.
+
+LITIGATION
+Patent troll suit (EDTX): exposure $28M–$85M, 35% adverse probability.
+IRS transfer-pricing audit (FY20–21): proposed adjustment $47M, 40% adverse probability. NOT included in MAE representations.
+California employment class action: exposure $6M–$18M.
+
+SECURITY
+SOC 2 Type II (Feb 2023 – Jan 2024). Exceptions:
+  CC6.3: User access reviews completed for only 77% of sample (target 100%).
+  CC9.1: Vendor security assessments skipped for 4 of 18 critical vendors with production access.
+  CC7.2: Incident response exercises performed once (target: quarterly).
+Encryption: AES-128 on legacy us-east-1-legacy region (decommission Q3 FY25). TLS 1.1 internal comms in same region.
+Open pen-test HIGH findings: HV-2023-001 (Vault brute-force, ETA Q2 FY25), HV-2023-002 (Consul path traversal, ETA Q1 FY25).
+Incident: July 2023 spear-phish; developer token compromised; not disclosed in FY23 10-K.

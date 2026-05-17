@@ -172,7 +172,9 @@ class Coordinator:
 
         if self._doc_id:
             doc_id = self._doc_id
-            self._docs.append_text(doc_id, body)
+            # populate_ma_memo overwrites in correct section order;
+            # append_text inserts at index 1 (prepends), reversing content on each run.
+            self._docs.populate_ma_memo(doc_id, sections)
         else:
             title = f"Deal Memo — {state.get('subject_name', 'unknown')}"
             doc_id = self._docs.create_doc(title, body)

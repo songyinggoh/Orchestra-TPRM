@@ -1,0 +1,53 @@
+HASHICORP CODEBASE SECURITY AUDIT — SUMMARY
+Auditor: Veracode + Internal Red Team | Period: Oct–Dec 2023
+(FICTIONAL DOCUMENT — FOR DEMONSTRATION PURPOSES ONLY)
+
+SCOPE: Terraform Core, Vault, Consul, HCP backend (~2.1M lines Go, 340K lines TypeScript)
+Total findings: 147 (Critical: 4, High: 18, Medium: 53, Low: 72)
+Open at report date: 4 critical, 11 high
+
+CRITICAL FINDINGS (ALL OPEN)
+
+CRIT-001 — Hardcoded credentials in test harness
+File: terraform/internal/legacy/test_helpers/aws_mock.go:143
+  const TEST_AWS_ACCESS_KEY = "AKIAIOSFODNN7EXAMPLE"
+  const TEST_AWS_SECRET_KEY = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+Secret-scanning rules only check for "EXAMPLE" suffix; real credentials replacing these would not be caught.
+
+CRIT-002 — SQL injection in HCP billing API
+File: hcp-backend/billing/query.go:314
+  query := "SELECT * FROM billing_events WHERE customer_id = '" + customerID + "'"
+customerID is from authenticated API body, directly concatenated. Allows horizontal privilege escalation or full table disclosure via SQL injection.
+
+CRIT-003 — SSRF in Vault AWS auth backend
+File: vault/builtin/credential/aws/backend.go:893
+Allowlist check is case-sensitive; HTTP library normalizes to lowercase before dispatch.
+"HTTP://169.254.169.254/latest/meta-data/" bypasses allowlist → leaks EC2 IAM role credentials.
+
+CRIT-004 — Insecure deserialization in Consul RPC
+File: consul/agent/rpc_handler.go:1205
+  gob.NewDecoder(bytes.NewReader(body)).Decode(&req)
+gob is unsafe for untrusted input; crafted payloads can trigger arbitrary type instantiation.
+
+HIGH FINDINGS (SELECTED OPEN)
+
+HIGH-001 — Weak PBKDF2 iteration count (10,000 vs NIST-recommended 310,000) for legacy Vault seal keys. ~14,000 enterprise customers affected. Not auto-upgraded.
+HIGH-002 — Missing authorization check in Terraform Registry publish endpoint (PR #4821 removed check, never restored). Any authenticated user can overwrite modules in any namespace including "hashicorp" official.
+HIGH-003 — go-getter v1.6.1 (CVE-2022-30323, CVSS 8.6): path traversal allows malicious module to overwrite files. ~2,100 enterprise customers on pinned Terraform v1.3.x affected.
+HIGH-004 — InsecureSkipVerify in HCP CLI controlled by env var HCP_INSECURE=true with no audit log. Disables TLS validation silently in CI/CD pipelines.
+
+OPEN CVEs (CVSS ≥ 7.0): 4
+  go-getter v1.6.1: CVE-2022-30323 CVSS 8.6
+  golang.org/x/net: CVE-2022-41723 CVSS 7.5
+  golang.org/x/text v0.3.7: CVE-2022-32149 CVSS 7.5
+  gin-gonic/gin v1.8.1: CVE-2023-29401 CVSS 5.3
+
+TEST COVERAGE (targets not met)
+  vault: 71% (target 85%) — BELOW
+  hcp-backend: 54% (target 75%) — SIGNIFICANTLY BELOW
+  23% of error paths in hcp-backend swallow errors with bare "_ = err"
+
+AGPL RISK
+  hashicorp/go-plugin transitively depends on syncthing-go-lib (AGPL v3) via optional build tag.
+  If tag enabled in distribution: entire go-plugin binary subject to AGPL copyleft → all Vault plugins require source disclosure.
+  Obtain written confirmation from build team that tag is never enabled in release artifacts.

@@ -11,7 +11,7 @@ import asyncio
 import json
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import typer
 import yaml
@@ -33,6 +33,32 @@ from orchestra_tprm.graph import Adapters, build_graph
 from orchestra_tprm.modes.config import load_mode
 
 app = typer.Typer(add_completion=False, help="Multi-agent TPRM framework.")
+
+
+async def _run_and_maybe_record(
+    graph: Any,
+    initial: dict,
+    provider: Any,
+    persist: bool,
+    record_replay: Optional[Path],
+) -> Any:
+    """Run the graph and optionally export LLMCalled events to a JSONL replay file."""
+    result = await run_graph(graph, input=initial, provider=provider, persist=persist)
+
+    if record_replay is not None and persist:
+        from orchestra.storage.events import EventType
+        from orchestra.storage.sqlite import SQLiteEventStore
+
+        async with SQLiteEventStore() as store:
+            events = await store.get_events(
+                result.run_id,
+                event_types=[EventType.LLM_CALLED],
+            )
+        lines = [json.dumps(e.model_dump(), default=str) for e in events]
+        record_replay.write_text("\n".join(lines), encoding="utf-8")
+        typer.echo(f"Recorded {len(lines)} LLM calls → {record_replay}")
+
+    return result
 
 
 def _load_env() -> dict[str, str]:
@@ -158,8 +184,9 @@ def main(
         "subject_name": manifest.get("subject_name", ""),
         "packet_path": str(packet),
     }
+    persist = record_replay is not None
     result = asyncio.run(
-        run_graph(graph, input=initial, provider=provider, persist=False)
+        _run_and_maybe_record(graph, initial, provider, persist, record_replay)
     )
     state = result.state
     payload = {

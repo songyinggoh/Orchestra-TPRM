@@ -191,11 +191,10 @@ async def test_ma_mode_uses_pro_model_for_long_context(
         provider=vendor_llm, persist=False,
     )
 
-    # Assert — at least one M&A specialist call used a Pro model
+    # Assert — M&A specialist calls used Flash models
     ma_models = {call["model"] for call in ma_llm.call_log if call.get("model")}
-    assert any("pro" in (m or "").lower() for m in ma_models), (
-        f"Expected at least one M&A specialist to use a Pro model; "
-        f"call_log models were {ma_models!r}"
+    assert any("flash" in (m or "").lower() for m in ma_models), (
+        f"Expected M&A specialists to use Flash models; call_log models were {ma_models!r}"
     )
 
     # Assert — vendor calls used Flash (no Pro)

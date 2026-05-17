@@ -1,0 +1,9 @@
+subject_name: "HashiCorp Inc."
+docs:
+  - path: 10k.pdf
+    kind: annual_report
+  - path: acquisition_agreement.pdf
+    kind: contract
+  - path: codebase_audit.pdf
+    kind: source_code
+links_file: links.txt

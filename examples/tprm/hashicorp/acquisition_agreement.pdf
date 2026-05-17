@@ -1,0 +1,42 @@
+AGREEMENT AND PLAN OF MERGER — HASHICORP / CLOUDCORE
+Date: February 14, 2024 | Consideration: $35.00/share (~$6.8B enterprise value)
+(FICTIONAL DOCUMENT — FOR DEMONSTRATION PURPOSES ONLY)
+
+§1 MERGER CONSIDERATION
+$35.00 cash per share. Merger Sub merges into Company; Company survives as wholly owned subsidiary.
+
+§2 REPRESENTATIONS — IP (Section 2.5)
+Company owns all material IP EXCEPT Schedule 2.5(a): three HCL parser patents (US2021/0456783, US2022/0118923, US2022/0334521) with founder "background IP" carve-outs. Outside counsel opinion obtained but no guarantee of no adverse outcome. Company does NOT indemnify Parent for losses arising from these carve-outs.
+Open-source AGPL risk: Vault's go-plugin dependency transitively includes an AGPL v3 library via optional build tag. If build tag is ever enabled in distribution, entire Vault binary may be subject to AGPL copyleft. Risk is DISCLOSED but NOT indemnified.
+
+§2 REPRESENTATIONS — MATERIAL CONTRACTS (Section 2.8)
+Change-of-control termination rights in: Microsoft Azure Co-Sell (~$11.2M ARR), AWS Marketplace (~$8.7M ARR), Federal Enterprise License (~$14.1M ARR, requires contracting officer consent, 90–120 day timeline). Total at-risk ARR: ~$34M. No consents obtained as of Agreement date.
+
+§2 REPRESENTATIONS — TAX (Section 2.12)
+IRS audit for FY20–21; proposed adjustment $47M. 40% adverse probability. NOT reflected in MAE representations. Indemnification basket is $25M — if IRS claim resolved below basket, Parent bears the cost.
+
+§3 COVENANTS — NO-SHOP (Section 3.3)
+Company cannot solicit competing bids. Fiduciary-out exception exists but: notice window to Parent is 24 hours (market standard: 48–72 hours), limiting ability to run a competing process.
+
+§3 COVENANTS — EMPLOYEES (Section 3.5)
+Compensation maintained 6 months post-close, EXCEPT "critical talent" (defined at Parent's sole discretion). ~200 employees with $87M unvested equity NOT on acceleration schedule; schedule not finalized as of Agreement date.
+
+§3 COVENANTS — NON-COMPETE (Section 3.6)
+24-month global non-compete for founders and C-suite. Three of four founders are California residents. Non-competes are unenforceable in California, Minnesota, North Dakota, and EU — creates key-talent flight risk immediately post-close.
+
+§4 CONDITIONS — ANTITRUST (Section 4.1)
+HSR waiting period not expired. Combined infrastructure automation share (Parent 18% + Company 24%) may trigger Second Request; 20–30% probability, 6–12 month delay risk.
+
+§4 MAE DEFINITION (Section 4.2)
+MAE carve-outs are NARROWER than market standard: do NOT exclude (a) changes generally affecting software industry, (b) effects of announcing this Agreement. Terraform BSL backlash revenue loss could constitute a MAE, allowing Parent to walk without paying termination fee.
+
+§5 TERMINATION FEES
+Company terminates for Superior Proposal: pays $204M (3.0% of equity value).
+Parent walks on antitrust block: pays $68M (1.0% of equity value).
+Asymmetric — Company shareholders bear disproportionate antitrust risk.
+
+§6 INDEMNIFICATION
+Cap: 15% of Merger Consideration (~$1.02B). Basket: $25M. Claims below $25M aggregate are not recoverable. IRS contingency ($47M) plus IP disputes may exhaust basket before Parent can recover.
+
+§7 JURY WAIVER (Section 7.8)
+All disputes resolved by binding AAA arbitration in New York. Jury trial waived. May not be enforceable in all jurisdictions where Company personnel reside.

@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import re
 import shutil
 from collections.abc import AsyncIterator
@@ -43,12 +44,10 @@ from orchestra.providers._cli_common import (
 
 _logger = logging.getLogger(__name__)
 
-# Module-level gate that serializes Gemini CLI invocations across all
-# instances. Size=1 because the Gemini per-minute subscription quota is
-# easily exhausted by even two concurrent calls. Critical section is the
-# subprocess invocation only — prompt assembly and response parsing run
-# outside the gate.
-_GEMINI_CLI_GATE = asyncio.Semaphore(1)
+# Module-level gate that limits concurrent Gemini CLI invocations.
+# Defaults to 5 (enough for the 5-specialist fan-out in TPRM).
+# Set GEMINI_CLI_CONCURRENCY=1 to restore the original serial behaviour.
+_GEMINI_CLI_GATE = asyncio.Semaphore(int(os.getenv("GEMINI_CLI_CONCURRENCY", "5")))
 
 # Detects the "quota exhausted" message the CLI surfaces in stderr.
 # Capture group 1 is the reset-after hint (seconds) when present.
@@ -57,6 +56,12 @@ _QUOTA_RX = re.compile(
     re.IGNORECASE,
 )
 _DEFAULT_QUOTA_BACKOFF_SECONDS = 45
+
+# Detects safety-blocked CLI responses (empty stdout + safety banner on stderr).
+_SAFETY_RX = re.compile(
+    r"blocked|safety|harmful|violat|content.?policy",
+    re.IGNORECASE,
+)
 
 
 class GeminiCliProvider:
@@ -175,6 +180,17 @@ class GeminiCliProvider:
                 raise last_err
 
         raw_output = stdout.decode(errors="replace").strip()
+        stderr_text = stderr.decode(errors="replace") if stderr else ""
+
+        # Detect safety-blocked response: empty stdout + safety banner in stderr.
+        if not raw_output and _SAFETY_RX.search(stderr_text):
+            _logger.warning("gemini_cli_safety_block model=%s", use_model)
+            return LLMResponse(
+                content="",
+                finish_reason="safety",
+                usage=TokenUsage(input_tokens=0, output_tokens=0, total_tokens=0, estimated_cost_usd=0.0),
+                model=use_model,
+            )
 
         # Try JSON first (gemini may output structured JSON).
         data: dict[str, Any] | None = None
@@ -257,7 +273,7 @@ class GeminiCliProvider:
         """Approximate token count (4 chars per token heuristic)."""
         total = 0
         for msg in messages:
-            total += len(msg.content) // 4 + 4
+            total += len(msg.content or "") // 4 + 4
         return total
 
     def get_model_cost(self, model: str | None = None) -> ModelCost:

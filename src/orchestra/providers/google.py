@@ -321,7 +321,11 @@ class GoogleProvider:
         """Approximate token count (4 chars per token heuristic)."""
         total = 0
         for msg in messages:
-            total += len(msg.content) // 4 + 4
+            total += len(msg.content or "") // 4 + 4
+            if msg.tool_calls:
+                for tc in msg.tool_calls:
+                    import json as _json
+                    total += len(_json.dumps(tc.arguments)) // 4
         return total
 
     def get_model_cost(self, model: str | None = None) -> ModelCost:

@@ -105,7 +105,11 @@ class _BQShim:
         legacy_insert = getattr(self._inner, "insert_rows", None)
         if legacy_insert is not None:
             legacy_insert(dataset, table, rows)
-        return len(rows)
+            return len(rows)
+        raise TypeError(
+            f"BQ adapter {type(self._inner).__name__!r} has neither "
+            "'append_findings' nor 'insert_rows' — no findings were written."
+        )
 
 
 # ---------------------------------------------------------------------------

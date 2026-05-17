@@ -69,3 +69,7 @@ docs/competitive-analysis-v2.md
 
 # Local demo verdict outputs (per-run artifacts)
 verdict*.json
+
+# Dashboard dependencies
+dashboard/node_modules/
+dashboard/dist/
