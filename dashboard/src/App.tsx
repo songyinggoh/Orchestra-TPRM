@@ -83,9 +83,10 @@ const VENDOR_PIPELINE = [
   "policy", "coordinator",
 ];
 const MA_PIPELINE = [
-  "bootstrap_node", "intake_node", "router",
-  "LegalAgent", "SecurityAgent", "ExternalAgent", "CodeAgent", "FinancialAgent",
-  "policy", "coordinator",
+  "bootstrap_node", "intake_node", "vdr_gate", "router",
+  "LegalAgent", "SecurityAgent", "ExternalAgent", "CodeAgent",
+  "FinancialAgent", "SaaSMetricsAgent",
+  "policy", "coordinator", "pmi_planner",
 ];
 const NODE_LABELS: Record<string, string> = {
   bootstrap_node: "Bootstrap",
