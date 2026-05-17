@@ -21,7 +21,8 @@ from typing import Any, Literal
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 _logger = logging.getLogger(__name__)
@@ -356,3 +357,17 @@ async def list_runs() -> dict[str, Any]:
         for run_id, meta in _runs.items()
     }
     return {"runs": summary}
+
+
+# ── Static files (production: React build copied to /app/static) ──────────────
+
+_STATIC_DIR = Path(os.environ.get("STATIC_DIR", Path(__file__).parent.parent.parent.parent / "static"))
+
+if _STATIC_DIR.is_dir():
+    _assets = _STATIC_DIR / "assets"
+    if _assets.is_dir():
+        app.mount("/assets", StaticFiles(directory=_assets), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def _spa_fallback(full_path: str) -> FileResponse:
+        return FileResponse(_STATIC_DIR / "index.html")
