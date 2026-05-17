@@ -43,6 +43,11 @@ try:
 except ImportError:  # pragma: no cover
     FinancialAgent = None  # type: ignore[assignment]
 
+try:
+    from orchestra_tprm.agents.specialists.saas_metrics import SaaSMetricsAgent
+except ImportError:  # pragma: no cover
+    SaaSMetricsAgent = None  # type: ignore[assignment]
+
 
 @dataclass
 class Adapters:
@@ -133,6 +138,8 @@ def _build_specialists(cfg: ModeConfig, adapters: Adapters) -> dict[str, Any]:
         active["code"] = CodeAgent(model=spec.code)
     if spec.financial and FinancialAgent is not None:
         active["financial"] = FinancialAgent(model=spec.financial)
+    if spec.saas_metrics and SaaSMetricsAgent is not None:
+        active["saas_metrics"] = SaaSMetricsAgent(model=spec.saas_metrics)
     return active
 
 
@@ -321,11 +328,11 @@ class _DocRouter(BaseAgent):
 _KIND_TO_AGENT_NAMES = {
     "contract": ["LegalAgent"],
     "security_attestation": ["SecurityAgent"],
-    "financial_statement": ["FinancialAgent", "LegalAgent"],
-    "financial_filing": ["FinancialAgent", "LegalAgent"],
+    "financial_statement": ["FinancialAgent", "LegalAgent", "SaaSMetricsAgent"],
+    "financial_filing": ["FinancialAgent", "LegalAgent", "SaaSMetricsAgent"],
     "source_code": ["CodeAgent"],
-    "investor_deck": ["FinancialAgent"],
-    "annual_report": ["LegalAgent", "FinancialAgent", "SecurityAgent"],
+    "investor_deck": ["FinancialAgent", "SaaSMetricsAgent"],
+    "annual_report": ["LegalAgent", "FinancialAgent", "SecurityAgent", "SaaSMetricsAgent"],
     "unknown": ["LegalAgent", "SecurityAgent"],
 }
 
