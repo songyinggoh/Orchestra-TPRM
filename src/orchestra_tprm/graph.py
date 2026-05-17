@@ -200,7 +200,10 @@ async def _run_intake(
             local_path.write_bytes(content)
             uri = f"local://{local_path.as_posix()}"
             manifest.append({"path": name, "kind": kind, "file_uri": uri})
-            file_uris[kind] = uri
+            # Index by filename, not by kind (CR-07: multiple files of the same
+            # kind — e.g. two contracts — would overwrite each other when keyed
+            # by kind; the subsequent filename-keying loop at the end covers lookup).
+            file_uris[name] = uri
         subject_name = state.get("subject_name", "")
     else:
         return {"packet_manifest": [], "file_uris": {}}
