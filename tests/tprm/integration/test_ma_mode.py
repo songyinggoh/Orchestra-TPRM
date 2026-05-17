@@ -134,7 +134,9 @@ async def test_ma_mode_uses_pro_model_for_long_context(
         LLMResponse(content=json.dumps([])),  # Security
         LLMResponse(content=json.dumps([])),  # External
         LLMResponse(content=json.dumps({"summary": "", "tech_debt": "low"})),  # Code
-        LLMResponse(content=json.dumps([])),  # Financial
+        LLMResponse(content=json.dumps([])),  # Financial (per-doc)
+        LLMResponse(content=json.dumps([])),  # Financial QoE pass (M&A second call)
+        LLMResponse(content=json.dumps([])),  # SaaSMetricsAgent
         LLMResponse(content=json.dumps({
             "Executive Summary": "stub",
             "Strategic Fit": "stub",
@@ -143,6 +145,7 @@ async def test_ma_mode_uses_pro_model_for_long_context(
             "Risks": "stub",
             "Open Questions": "stub",
         })),  # Coordinator
+        LLMResponse(content=json.dumps([])),  # PMIPlannerAgent
     ])
     build_graph = graph_module.build_graph
     Adapters = graph_module.Adapters

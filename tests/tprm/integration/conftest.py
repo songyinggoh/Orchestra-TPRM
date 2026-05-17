@@ -216,7 +216,7 @@ def _ma_responses() -> list[LLMResponse]:
                 "tech_debt": "medium",
             })
         ),
-        # FinancialAgent
+        # FinancialAgent — per-document analysis
         LLMResponse(
             content=json.dumps([
                 {
@@ -235,6 +235,21 @@ def _ma_responses() -> list[LLMResponse]:
                 },
             ])
         ),
+        # FinancialAgent — QoE normalization pass (M&A mode second LLM call)
+        LLMResponse(content=json.dumps([])),
+        # SaaSMetricsAgent — SaaS KPI assessment
+        LLMResponse(
+            content=json.dumps([{
+                "metric": "nrr_pct",
+                "value": "112%",
+                "severity": "low",
+                "summary": "NRR at 112% indicates healthy net expansion above the 100% threshold.",
+                "ic_decision": "post-close-monitoring",
+                "exposure_usd_low": None,
+                "exposure_usd_high": None,
+                "citation_page": 45,
+            }])
+        ),
         # Coordinator — deal-memo sections
         LLMResponse(
             content=json.dumps({
@@ -245,6 +260,25 @@ def _ma_responses() -> list[LLMResponse]:
                 "Risks": "License fragmentation, OpenTofu fork, customer churn risk.",
                 "Open Questions": "Customer retention since BSL transition?",
             })
+        ),
+        # PMIPlannerAgent — 100-day integration plan
+        LLMResponse(
+            content=json.dumps([
+                {
+                    "workstream": "tech",
+                    "action": "Conduct IT systems inventory and dependency mapping.",
+                    "deadline_tier": "day-30",
+                    "owner": "CIO",
+                    "dependency": None,
+                },
+                {
+                    "workstream": "legal",
+                    "action": "Complete entity rationalization and regulatory filings.",
+                    "deadline_tier": "day-60",
+                    "owner": "General Counsel",
+                    "dependency": None,
+                },
+            ])
         ),
     ]
 
