@@ -358,7 +358,7 @@ function SourceToggle({
 
 // ── VerdictCard ───────────────────────────────────────────────────────────────
 
-function VerdictCard({ data }: { data: VerdictData }) {
+function VerdictCard({ data, mode }: { data: VerdictData; mode: Mode }) {
   const verdict = data.policy_verdict.toLowerCase();
   const color = VERDICT_COLOR[verdict] ?? "#8b8fa8";
   const sevCounts = groupBySeverity(data.findings);
@@ -501,7 +501,10 @@ function VerdictCard({ data }: { data: VerdictData }) {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
             <thead>
               <tr style={{ borderBottom: "1px solid var(--md-sys-color-outline)" }}>
-                {(["Agent", "Category", "Severity", "Summary"] as const).map((h) => (
+                {(mode === "ma"
+                  ? (["Agent", "Workstream", "Category", "Severity", "IC Decision", "Exposure", "Summary"] as const)
+                  : (["Agent", "Category", "Severity", "Summary"] as const)
+                ).map((h) => (
                   <th
                     key={h}
                     style={{
@@ -531,26 +534,29 @@ function VerdictCard({ data }: { data: VerdictData }) {
                     transition: "background 100ms ease",
                   }}
                 >
-                  <td
-                    style={{
-                      padding: "var(--space-sm) var(--space-sm2)",
-                      color: "var(--md-sys-color-on-surface-variant)",
-                      whiteSpace: "nowrap",
-                      fontSize: 14,
-                      fontWeight: 400,
-                    }}
-                  >
+                  <td style={{ padding: "var(--space-sm) var(--space-sm2)", color: "var(--md-sys-color-on-surface-variant)", whiteSpace: "nowrap", fontSize: 14, fontWeight: 400 }}>
                     {f.agent}
                   </td>
-                  <td
-                    style={{
-                      padding: "var(--space-sm) var(--space-sm2)",
-                      color: "var(--md-sys-color-on-surface)",
-                      whiteSpace: "nowrap",
-                      fontSize: 14,
-                      fontWeight: 400,
-                    }}
-                  >
+                  {mode === "ma" && (
+                    <td style={{ padding: "var(--space-sm) var(--space-sm2)" }}>
+                      {f.workstream ? (
+                        <span style={{
+                          background: `${WS_COLOR[f.workstream] ?? "var(--md-sys-color-on-surface-variant)"}1a`,
+                          border: `1px solid ${WS_COLOR[f.workstream] ?? "var(--md-sys-color-on-surface-variant)"}4d`,
+                          color: WS_COLOR[f.workstream] ?? "var(--md-sys-color-on-surface-variant)",
+                          padding: "var(--space-xs) var(--space-sm)",
+                          borderRadius: "var(--md-sys-shape-extra-small)",
+                          fontSize: 11,
+                          fontWeight: 500,
+                          textTransform: "capitalize",
+                          whiteSpace: "nowrap",
+                        }}>{f.workstream}</span>
+                      ) : (
+                        <span style={{ color: "var(--md-sys-color-on-surface-variant)", opacity: 0.5 }}>—</span>
+                      )}
+                    </td>
+                  )}
+                  <td style={{ padding: "var(--space-sm) var(--space-sm2)", color: "var(--md-sys-color-on-surface)", whiteSpace: "nowrap", fontSize: 14, fontWeight: 400 }}>
                     {f.category}
                   </td>
                   <td style={{ padding: "var(--space-sm) var(--space-sm2)" }}>
@@ -568,16 +574,32 @@ function VerdictCard({ data }: { data: VerdictData }) {
                       {f.severity}
                     </span>
                   </td>
-                  <td
-                    style={{
-                      padding: "var(--space-sm) var(--space-sm2)",
-                      color: "var(--md-sys-color-on-surface-variant)",
-                      maxWidth: 400,
-                      fontSize: 14,
-                      fontWeight: 400,
-                      lineHeight: 1.5,
-                    }}
-                  >
+                  {mode === "ma" && (
+                    <td style={{ padding: "var(--space-sm) var(--space-sm2)" }}>
+                      {f.ic_decision ? (
+                        <span style={{
+                          background: `${IC_COLOR[f.ic_decision] ?? "var(--md-sys-color-on-surface-variant)"}1a`,
+                          border: `1px solid ${IC_COLOR[f.ic_decision] ?? "var(--md-sys-color-on-surface-variant)"}4d`,
+                          color: IC_COLOR[f.ic_decision] ?? "var(--md-sys-color-on-surface-variant)",
+                          padding: "var(--space-xs) var(--space-sm)",
+                          borderRadius: "var(--md-sys-shape-extra-small)",
+                          fontSize: 11,
+                          fontWeight: 500,
+                          whiteSpace: "nowrap",
+                        }}>{f.ic_decision}</span>
+                      ) : (
+                        <span style={{ color: "var(--md-sys-color-on-surface-variant)", opacity: 0.5 }}>—</span>
+                      )}
+                    </td>
+                  )}
+                  {mode === "ma" && (
+                    <td style={{ padding: "var(--space-sm) var(--space-sm2)", color: "var(--md-sys-color-on-surface-variant)", whiteSpace: "nowrap", fontSize: 13, fontWeight: 400 }}>
+                      {f.exposure_usd_range
+                        ? `$${f.exposure_usd_range[0].toLocaleString()}–$${f.exposure_usd_range[1].toLocaleString()}`
+                        : "—"}
+                    </td>
+                  )}
+                  <td style={{ padding: "var(--space-sm) var(--space-sm2)", color: "var(--md-sys-color-on-surface-variant)", maxWidth: 400, fontSize: 14, fontWeight: 400, lineHeight: 1.5 }}>
                     {f.summary}
                   </td>
                 </tr>
@@ -598,6 +620,162 @@ function VerdictCard({ data }: { data: VerdictData }) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── ICMemoSection (M&A only) ──────────────────────────────────────────────────
+
+function ICMemoSection({ memo }: { memo: ICMemo }) {
+  const recColor = {
+    proceed: "#34a853",
+    reprice: "#fa7b17",
+    walk:    "#ea4335",
+  }[memo.recommendation];
+  const recIcon = { proceed: "check_circle", reprice: "trending_down", walk: "cancel" }[memo.recommendation];
+
+  return (
+    <div style={{
+      background: "var(--md-sys-color-surface)",
+      border: `1px solid ${recColor}4d`,
+      borderRadius: "var(--md-sys-shape-large)",
+      boxShadow: "var(--md-sys-elevation-1)",
+      padding: "var(--space-xl)",
+      marginTop: "var(--space-lg)",
+    }}>
+      <header style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)", marginBottom: "var(--space-md)" }}>
+        <span className="material-symbols-outlined" style={{ fontSize: 22, color: recColor, fontVariationSettings: "'FILL' 1, 'wght' 400" }}>{recIcon}</span>
+        <h2 style={{ margin: 0, fontSize: 18, fontWeight: 500, color: "var(--md-sys-color-on-surface)" }}>IC Memo</h2>
+        <span style={{
+          marginLeft: "var(--space-sm)",
+          background: `${recColor}1a`,
+          border: `1px solid ${recColor}4d`,
+          color: recColor,
+          padding: "var(--space-xs) var(--space-sm)",
+          borderRadius: "var(--md-sys-shape-extra-small)",
+          fontSize: 11,
+          fontWeight: 500,
+          textTransform: "uppercase",
+          letterSpacing: "0.08em",
+        }}>{memo.recommendation}</span>
+      </header>
+
+      {memo.headline_terms && (
+        <p style={{ margin: 0, marginBottom: "var(--space-md)", fontSize: 14, color: "var(--md-sys-color-on-surface)", fontWeight: 500 }}>
+          {memo.headline_terms}
+        </p>
+      )}
+      {memo.executive_summary && (
+        <p style={{ margin: 0, marginBottom: "var(--space-lg)", fontSize: 14, color: "var(--md-sys-color-on-surface-variant)", lineHeight: 1.5 }}>
+          {memo.executive_summary}
+        </p>
+      )}
+
+      {memo.risk_register.length > 0 && (
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr style={{ borderBottom: "1px solid var(--md-sys-color-outline)" }}>
+                {(["Finding", "Workstream", "Exposure", "Mitigation", "Probability"] as const).map((h) => (
+                  <th key={h} style={{ textAlign: "left", padding: "var(--space-sm) var(--space-sm2)", color: "var(--md-sys-color-on-surface-variant)", fontWeight: 500, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {memo.risk_register.map((r, i) => (
+                <tr key={i} style={{ borderBottom: "1px solid var(--md-sys-color-outline-variant)" }}>
+                  <td style={{ padding: "var(--space-sm) var(--space-sm2)", fontSize: 12, color: "var(--md-sys-color-on-surface-variant)", whiteSpace: "nowrap" }}>{r.finding_id}</td>
+                  <td style={{ padding: "var(--space-sm) var(--space-sm2)" }}>
+                    <span style={{
+                      background: `${WS_COLOR[r.workstream] ?? "var(--md-sys-color-on-surface-variant)"}1a`,
+                      color: WS_COLOR[r.workstream] ?? "var(--md-sys-color-on-surface-variant)",
+                      padding: "var(--space-xs) var(--space-sm)",
+                      borderRadius: "var(--md-sys-shape-extra-small)",
+                      fontSize: 11,
+                      fontWeight: 500,
+                      textTransform: "capitalize",
+                    }}>{r.workstream}</span>
+                  </td>
+                  <td style={{ padding: "var(--space-sm) var(--space-sm2)", fontSize: 12, color: "var(--md-sys-color-on-surface-variant)" }}>
+                    {r.exposure_usd_range ? `$${r.exposure_usd_range[0].toLocaleString()}–$${r.exposure_usd_range[1].toLocaleString()}` : "—"}
+                  </td>
+                  <td style={{ padding: "var(--space-sm) var(--space-sm2)", fontSize: 12, color: "var(--md-sys-color-on-surface)" }}>{r.mitigation}</td>
+                  <td style={{ padding: "var(--space-sm) var(--space-sm2)", fontSize: 12, color: "var(--md-sys-color-on-surface-variant)", textTransform: "capitalize" }}>{r.probability}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── PMIPlanSection (M&A only) ─────────────────────────────────────────────────
+
+const PMI_TIERS = ["day-30", "day-60", "day-100", "day-180"] as const;
+const PMI_TIER_LABELS: Record<typeof PMI_TIERS[number], string> = {
+  "day-30":  "Day 30",
+  "day-60":  "Day 60",
+  "day-100": "Day 100",
+  "day-180": "Day 180",
+};
+
+function PMIPlanSection({ plan }: { plan: PMIPlan }) {
+  return (
+    <div style={{
+      background: "var(--md-sys-color-surface)",
+      border: "1px solid var(--md-sys-color-outline)",
+      borderRadius: "var(--md-sys-shape-large)",
+      boxShadow: "var(--md-sys-elevation-1)",
+      padding: "var(--space-xl)",
+      marginTop: "var(--space-lg)",
+    }}>
+      <header style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)", marginBottom: "var(--space-md)" }}>
+        <span className="material-symbols-outlined" style={{ fontSize: 22, color: "var(--md-sys-color-primary)", fontVariationSettings: "'FILL' 1, 'wght' 400" }}>schedule</span>
+        <h2 style={{ margin: 0, fontSize: 18, fontWeight: 500, color: "var(--md-sys-color-on-surface)" }}>PMI 100-Day Plan</h2>
+      </header>
+
+      {plan.summary && (
+        <p style={{ margin: 0, marginBottom: "var(--space-lg)", fontSize: 14, color: "var(--md-sys-color-on-surface-variant)", lineHeight: 1.5 }}>
+          {plan.summary}
+        </p>
+      )}
+
+      {PMI_TIERS.map((tier) => {
+        const items = plan.items.filter((it) => it.deadline_tier === tier);
+        if (items.length === 0) return null;
+        return (
+          <section key={tier} style={{ marginBottom: "var(--space-md)" }}>
+            <h3 style={{ margin: 0, marginBottom: "var(--space-xs)", fontSize: 13, fontWeight: 500, color: "var(--md-sys-color-primary)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+              {PMI_TIER_LABELS[tier]} ({items.length})
+            </h3>
+            <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
+              {items.map((it, i) => (
+                <li key={i} style={{ display: "flex", alignItems: "flex-start", gap: "var(--space-sm)", padding: "var(--space-xs) 0", borderBottom: "1px solid var(--md-sys-color-outline-variant)" }}>
+                  <span style={{
+                    background: `${WS_COLOR[it.workstream] ?? "var(--md-sys-color-on-surface-variant)"}1a`,
+                    color: WS_COLOR[it.workstream] ?? "var(--md-sys-color-on-surface-variant)",
+                    padding: "var(--space-xs) var(--space-sm)",
+                    borderRadius: "var(--md-sys-shape-extra-small)",
+                    fontSize: 11,
+                    fontWeight: 500,
+                    textTransform: "capitalize",
+                    whiteSpace: "nowrap",
+                  }}>{it.workstream}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, color: "var(--md-sys-color-on-surface)", lineHeight: 1.4 }}>{it.action}</div>
+                    <div style={{ fontSize: 12, color: "var(--md-sys-color-on-surface-variant)", marginTop: 2 }}>
+                      Owner: {it.owner}
+                      {it.dependency ? ` • Depends on: ${it.dependency}` : null}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        );
+      })}
     </div>
   );
 }
@@ -1591,7 +1769,9 @@ export default function App() {
               )}
 
               {/* Verdict card */}
-              {rs.verdict && <VerdictCard data={rs.verdict} />}
+              {rs.verdict && <VerdictCard data={rs.verdict} mode={rs.mode} />}
+              {rs.verdict?.ic_memo && rs.mode === "ma" && <ICMemoSection memo={rs.verdict.ic_memo} />}
+              {rs.verdict?.pmi_plan && rs.mode === "ma" && <PMIPlanSection plan={rs.verdict.pmi_plan} />}
 
               {/* Error banner */}
               {rs.phase === "error" && (
