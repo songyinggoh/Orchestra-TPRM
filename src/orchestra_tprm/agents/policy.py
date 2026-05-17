@@ -210,17 +210,24 @@ class PolicyAgent:
                 for f in findings
             )
             threshold = ma_scope.materiality_threshold_usd if ma_scope else None
+            # Fallback: when no explicit threshold is set, derive 2% of enterprise
+            # value so that price-adjustment findings still trigger "reprice" (CR-05).
+            if threshold is None and ma_scope and ma_scope.enterprise_value_usd:
+                threshold = int(ma_scope.enterprise_value_usd * 0.02)
             if threshold is not None and total_upper > threshold:
                 recommendation = "reprice"
             else:
                 recommendation = "proceed"
 
-        # Build risk register: one ICRiskItem per finding that has an ic_decision tag
+        # Build risk register: one ICRiskItem per finding that has an ic_decision tag.
+        # Use f.id directly — Finding.id has a default_factory so it is always set
+        # after coercion in __call__.  The coercion loop in __call__ preserves the
+        # id field from the dict (WR-08: id stability across serialisation round-trips).
         risk_register: list[ICRiskItem] = []
-        for idx, f in enumerate(findings):
+        for f in findings:
             if f.ic_decision is None:
                 continue
-            finding_id = getattr(f, "id", None) or f"finding-{idx}"
+            finding_id = f.id
             risk_register.append(
                 ICRiskItem(
                     finding_id=str(finding_id),
