@@ -1,0 +1,35 @@
+# Project State — Orchestra TPRM M&A Enhancement
+
+**Project:** Orchestra TPRM — M&A Due Diligence Mode
+**Code:** TPRM-MA
+**Status:** In Progress
+**Last Activity:** 2026-05-18
+**Plan 01-04 Duration:** ~3 min
+**Last Completed:** Plan 01-04 (SaaSMetricsAgent Specialist)
+**Current Phase:** 01 — M&A Due Diligence Mode Enhancement
+**Current Position:** Wave 3 / Plan 01-05
+
+## Phase Status
+
+| Phase | Name | Status | Plans |
+|-------|------|--------|-------|
+| 1 | M&A Due Diligence Mode Enhancement | In Progress | 9 |
+
+## Key Decisions
+
+- M&A mode redesign scope: full 4-phase workflow imitation (Preparation → Execution → Synthesis → Integration Planning)
+- Research complete: 2× Sonnet research runs + Google AI search result on real M&A DD workflows
+- Schema-first approach: extend Finding with `exposure_usd_range`, `ic_decision`, `workstream` before agent changes
+- New agents: SaaS metrics specialist (parallel), PMI Planner (post-coordinator)
+- PolicyAgent replaced with IC classification (4-way: deal-stopper/price-adjustment/SPA-protection/post-close)
+- Frontend: scoping screen + updated findings table + IC memo section + PMI plan section
+- Coordinator Google Doc restructured into workstream-organized sections
+- Deadline: 2026-05-19 08:00 SGT (hackathon submission)
+- Plan 01-01: Use dict|None for RunRequest.ma_scope to avoid circular import between app.py and schemas.py
+- Plan 01-01: Fix Gemini schema converter to convert tuple prefixItems to array (not raise) for Gemini compatibility
+- Plan 01-02: QoE pass only fires when mode=ma AND all_findings non-empty; implied multiple capped at 20x, default 8x
+- Plan 01-02: OSS license allowlist includes APACHE-2.0, BSD-3-CLAUSE, BSD-2-CLAUSE (SPDX variants) to avoid false positives
+- Plan 01-03: ICMemo placeholder emitted in vendor mode (empty, recommendation=proceed) so ic_memo never None in state
+- Plan 01-03: ma_scope presence (not mode string) gates IC classification; vendor mode YAML verdict unchanged
+- Plan 01-04: No-docs fallback emits informational Finding (audit trail) rather than silent [] when VDR lacks financial docs
+- Plan 01-04: ic_decision clamping to known 4-value set prevents Pydantic validation errors from LLM label drift
