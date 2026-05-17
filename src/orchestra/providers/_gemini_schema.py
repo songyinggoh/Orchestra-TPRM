@@ -71,9 +71,17 @@ def _convert(node: Any, defs: dict[str, Any]) -> Any:
         else:
             out[k] = v
 
-    # Validate type if present — guard against tuple/etc. surfacing via "prefixItems"
-    if "prefixItems" in node:
-        raise GeminiSchemaError("unsupported: tuples (prefixItems) not in Gemini subset")
+    # Gemini does not support tuple types (prefixItems). Convert to array with
+    # items taken from the first prefixItem's type (all items assumed homogeneous).
+    if "prefixItems" in out or "prefixItems" in node:
+        prefix = node.get("prefixItems", [])
+        item_schema: dict[str, Any] = {}
+        if prefix:
+            item_schema = _convert(prefix[0], defs)
+        out.pop("prefixItems", None)
+        out["type"] = "array"
+        if item_schema:
+            out["items"] = item_schema
 
     return out
 
