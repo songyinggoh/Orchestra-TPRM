@@ -26,7 +26,7 @@
 | 01-03 | PolicyAgent IC classification | DONE (cec952e) |
 | 01-04 | SaaSMetricsAgent | DONE (c09d5b8, bb1e41a) |
 | 01-05 | PMI Planner agent | DONE (5369eed) |
-| 01-06 | Coordinator wiring | Pending |
+| 01-06 | Graph wiring (SaaSMetricsAgent + VDR gate + PMI planner) | DONE (d771863, ba93572, dd05246, 9275e23) |
 | 01-07 | Google Doc restructure | Pending |
 | 01-08 | Frontend scoping + IC memo + PMI | Pending |
 | 01-09 | Integration tests | Pending |

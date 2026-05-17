@@ -5,9 +5,10 @@
 **Status:** In Progress
 **Last Activity:** 2026-05-18
 **Plan 01-05 Duration:** ~3 min
-**Last Completed:** Plan 01-05 (PMIPlannerAgent callable agent)
+**Plan 01-06 Duration:** ~15 min
+**Last Completed:** Plan 01-06 (Graph wiring: SaaSMetricsAgent + VDR gate + PMI planner)
 **Current Phase:** 01 — M&A Due Diligence Mode Enhancement
-**Current Position:** Wave 3 / Plan 01-06
+**Current Position:** Wave 4 / Plan 01-07
 
 ## Phase Status
 
@@ -35,3 +36,7 @@
 - Plan 01-04: ic_decision clamping to known 4-value set prevents Pydantic validation errors from LLM label drift
 - Plan 01-05: PMIPlannerAgent uses callable-agent pattern (not BaseTPRMAgent subclass); unknown tiers clamped to day-100; unknown workstreams filtered out
 - Plan 01-05: Deterministic fallback encodes all 4 deadline tiers from CONTEXT.md without LLM dependency
+- Plan 01-06: All graph branching by cfg.output_kind only (no mode-string literals in graph.py)
+- Plan 01-06: VDR gate uses keyword-match strategy (path|kind haystack) for 6 DRL categories; emits low-severity informational findings only
+- Plan 01-06: ma_scope propagation was already present from Plan 01-01; Task 3 verified and extended SSE verdict event with ic_memo + pmi_plan
+- Plan 01-06: Integration test scripted LLM needed 10 responses (router + 6 parallel specialists + coordinator + pmi_planner + FinancialAgent QoE second call)
