@@ -90,19 +90,22 @@ def _stub_local_provider() -> ScriptedLLM:
     return ScriptedLLM(pool)
 
 
-def _resolve_provider(env: dict[str, str], replay: Optional[Path]):
+def _resolve_provider(env: dict[str, str], replay: Optional[Path], *, local: bool = True):
     """Pick the best available LLM provider for the current run.
 
-    Order: ``--replay`` file > GOOGLE_API_KEY > local stub.
+    Local order:   --replay file > stub (Fake* adapters; no real LLM)
+    Non-local order: --replay file > GOOGLE_API_KEY > GeminiCli subscription
     """
     if replay is not None:
         from orchestra.providers.replay import ReplayProvider  # ImportError bubbles — never silently run live on --replay
         return ReplayProvider.from_jsonl(str(replay))
+    if local:
+        return _stub_local_provider()
     if env.get("GOOGLE_API_KEY"):
         from orchestra.providers.google import GoogleProvider
-
         return GoogleProvider(api_key=env["GOOGLE_API_KEY"])
-    return _stub_local_provider()
+    from orchestra.providers.gemini_cli import GeminiCliProvider
+    return GeminiCliProvider()
 
 
 @app.command()
@@ -137,7 +140,7 @@ def main(
                 break
 
     if local:
-        provider = _resolve_provider(env, replay) if replay is not None else _stub_local_provider()
+        provider = _resolve_provider(env, replay, local=True)
         drive = FakeDriveAdapter()
         files = GeminiFilesAdapter()
         sheets = FakeSheetsAdapter()
@@ -148,9 +151,7 @@ def main(
         sheet_id = env.get("SHEETS_VENDOR_TEMPLATE_ID", "VENDOR-LOCAL")
         doc_id = env.get("DOCS_MA_TEMPLATE_ID", "")
     else:
-        from orchestra.providers.gemini_cli import GeminiCliProvider
-
-        provider = GeminiCliProvider()
+        provider = _resolve_provider(env, replay, local=False)
         drive = DriveAdapter()
         files = GeminiFilesAdapter()  # text-based docs use local:// URIs; no Files API upload needed
         sheets = SheetsAdapter()

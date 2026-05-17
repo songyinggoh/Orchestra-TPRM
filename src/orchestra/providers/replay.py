@@ -11,8 +11,12 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
+from pydantic import TypeAdapter
+
 from orchestra.core.types import LLMResponse, Message, TokenUsage, ToolCall
 from orchestra.storage.events import AnyEvent, LLMCalled
+
+_event_adapter: TypeAdapter[AnyEvent] = TypeAdapter(AnyEvent)
 
 
 class ReplayProvider:
@@ -32,7 +36,7 @@ class ReplayProvider:
                 continue
             data = json.loads(line)
             try:
-                event = AnyEvent.model_validate(data)  # type: ignore[call-arg]
+                event = _event_adapter.validate_python(data)
                 if isinstance(event, LLMCalled):
                     events.append(event)
             except Exception:
