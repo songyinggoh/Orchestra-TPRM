@@ -1,0 +1,148 @@
+INFO:     Started server process [9568]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+ERROR:    [Errno 10048] error while attempting to bind on address ('127.0.0.1', 8080): [winerror 10048] only one usage of each socket address (protocol/network address/port) is normally permitted
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Started server process [37904]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8080 (Press CTRL+C to quit)
+2026-05-18 03:35:39 [debug    ] executing_node                 node=bootstrap turn=1
+2026-05-18 03:35:39 [debug    ] executing_node                 node=intake turn=2
+2026-05-18 03:35:39 [debug    ] executing_node                 node=router turn=3
+Workflow
+├── ✓ bootstrap [0.0s] 0 tok $0.0000
+├── ✓ intake [0.0s] 0 tok $0.0000
+├── router ...
+└── FAILED after 15.4s
+Graph execution failed run_id=05c3af3bd41a45d985dc2e99f6c163ca
+Traceback (most recent call last):
+  File "C:\Users\user\Desktop\github\Transforming Enterprise Through AI\Orchestra\src\orchestra_tprm\server\app.py", line 279, in _execute_graph_task
+    final_state = await graph_task
+                  ^^^^^^^^^^^^^^^^
+  File "C:\Users\user\Desktop\github\Transforming Enterprise Through AI\Orchestra\src\orchestra\core\compiled.py", line 225, in run
+    final_state_dict = await self._run_loop(
+                       ^^^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+    )
+    ^
+  File "C:\Users\user\Desktop\github\Transforming Enterprise Through AI\Orchestra\src\orchestra\core\compiled.py", line 505, in _run_loop
+    update = await self._execute_node(str(current_node_id), node, state_dict, context)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\Desktop\github\Transforming Enterprise Through AI\Orchestra\src\orchestra\core\compiled.py", line 698, in _execute_node
+    return await self._execute_agent_node(node_id, node, state_dict, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\Desktop\github\Transforming Enterprise Through AI\Orchestra\src\orchestra\core\compiled.py", line 787, in _execute_agent_node
+    result: AgentResult = await agent.run(agent_input, context)
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\Desktop\github\Transforming Enterprise Through AI\Orchestra\src\orchestra_tprm\graph.py", line 284, in run
+    resp: LLMResponse = await context.provider.complete(
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+    )
+    ^
+  File "C:\Users\user\Desktop\github\Transforming Enterprise Through AI\Orchestra\src\orchestra\providers\gemini_cli.py", line 152, in complete
+    raise ProviderError(
+    ...<2 lines>...
+    )
+orchestra.core.errors.ProviderError: gemini CLI exited with code 55.
+  stderr: YOLO mode is enabled. All tool calls will be automatically approved.
+Approval mode overridden to "default" because the current folder is not trusted.
+YOLO mode is enabled. All tool calls will be automatically approved.
+Approval mode overridden to "default" because the current folder is not trusted.
+[31mGemini CLI is not running in a trusted directory. To proceed, either use `--skip-trust`, set the `GEMINI_CLI_TRUST_WORKSPACE=true` environment variable, or trust this directory in interactive mod
+2026-05-18 03:37:41 [debug    ] executing_node                 node=bootstrap turn=1
+2026-05-18 03:37:41 [debug    ] executing_node                 node=intake turn=2
+2026-05-18 03:37:41 [debug    ] executing_node                 node=vdr_gate turn=3
+2026-05-18 03:37:41 [debug    ] executing_node                 node=router turn=4
+Workflow
+├── ✓ bootstrap [0.0s] 0 tok $0.0000
+├── ✓ intake [0.0s] 0 tok $0.0000
+├── ✓ vdr_gate [0.0s] 0 tok $0.0000
+├── router ...
+└── FAILED after 11.7s
+Graph execution failed run_id=4a3d6c2e146a479bad818bf17d63002d
+Traceback (most recent call last):
+  File "C:\Users\user\Desktop\github\Transforming Enterprise Through AI\Orchestra\src\orchestra_tprm\server\app.py", line 279, in _execute_graph_task
+    final_state = await graph_task
+                  ^^^^^^^^^^^^^^^^
+  File "C:\Users\user\Desktop\github\Transforming Enterprise Through AI\Orchestra\src\orchestra\core\compiled.py", line 225, in run
+    final_state_dict = await self._run_loop(
+                       ^^^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+    )
+    ^
+  File "C:\Users\user\Desktop\github\Transforming Enterprise Through AI\Orchestra\src\orchestra\core\compiled.py", line 505, in _run_loop
+    update = await self._execute_node(str(current_node_id), node, state_dict, context)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\Desktop\github\Transforming Enterprise Through AI\Orchestra\src\orchestra\core\compiled.py", line 698, in _execute_node
+    return await self._execute_agent_node(node_id, node, state_dict, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\Desktop\github\Transforming Enterprise Through AI\Orchestra\src\orchestra\core\compiled.py", line 787, in _execute_agent_node
+    result: AgentResult = await agent.run(agent_input, context)
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\Desktop\github\Transforming Enterprise Through AI\Orchestra\src\orchestra_tprm\graph.py", line 284, in run
+    resp: LLMResponse = await context.provider.complete(
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+    )
+    ^
+  File "C:\Users\user\Desktop\github\Transforming Enterprise Through AI\Orchestra\src\orchestra\providers\gemini_cli.py", line 152, in complete
+    raise ProviderError(
+    ...<2 lines>...
+    )
+orchestra.core.errors.ProviderError: gemini CLI exited with code 55.
+  stderr: YOLO mode is enabled. All tool calls will be automatically approved.
+Approval mode overridden to "default" because the current folder is not trusted.
+YOLO mode is enabled. All tool calls will be automatically approved.
+Approval mode overridden to "default" because the current folder is not trusted.
+[31mGemini CLI is not running in a trusted directory. To proceed, either use `--skip-trust`, set the `GEMINI_CLI_TRUST_WORKSPACE=true` environment variable, or trust this directory in interactive mod
+INFO:     Started server process [17924]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8080 (Press CTRL+C to quit)
+2026-05-18 03:45:08 [debug    ] executing_node                 node=bootstrap turn=1
+2026-05-18 03:45:08 [debug    ] executing_node                 node=intake turn=2
+2026-05-18 03:45:08 [debug    ] executing_node                 node=vdr_gate turn=3
+2026-05-18 03:45:08 [debug    ] executing_node                 node=router turn=4
+2026-05-18 03:48:34 [debug    ] executing_node                 node=policy turn=5
+2026-05-18 03:48:34 [debug    ] executing_node                 node=coordinator turn=6
+2026-05-18 03:49:01 [debug    ] executing_node                 node=pmi_planner turn=7
+Workflow
+├── ✓ bootstrap [0.0s] 0 tok $0.0000
+├── ✓ intake [0.0s] 0 tok $0.0000
+├── ✓ vdr_gate [0.0s] 0 tok $0.0000
+├── ✓ router [84.1s] 0 tok $0.0000
+├── ✓ policy [0.0s] 0 tok $0.0000
+├── ✓ coordinator [27.0s] 0 tok $0.0000
+├── ✓ pmi_planner [32.3s] 0 tok $0.0000
+└── TOTAL: 0 tokens, $0.0000, 265.9s
+2026-05-18 03:57:02 [debug    ] executing_node                 node=bootstrap turn=1
+2026-05-18 03:57:02 [debug    ] executing_node                 node=intake turn=2
+2026-05-18 03:57:02 [debug    ] executing_node                 node=vdr_gate turn=3
+2026-05-18 03:57:02 [debug    ] executing_node                 node=router turn=4
+2026-05-18 03:58:50 [debug    ] executing_node                 node=bootstrap turn=1
+2026-05-18 03:58:50 [debug    ] executing_node                 node=intake turn=2
+2026-05-18 03:58:50 [debug    ] executing_node                 node=router turn=3
+2026-05-18 03:59:37 [debug    ] executing_node                 node=policy turn=5
+2026-05-18 03:59:37 [debug    ] executing_node                 node=coordinator turn=6
+2026-05-18 04:00:28 [debug    ] executing_node                 node=pmi_planner turn=7
+Workflow
+├── ✓ bootstrap [0.0s] 0 tok $0.0000
+├── ✓ intake [0.0s] 0 tok $0.0000
+├── ✓ vdr_gate [0.0s] 0 tok $0.0000
+├── ✓ router [26.1s] 0 tok $0.0000
+├── ✓ policy [0.0s] 0 tok $0.0000
+├── ✓ coordinator [51.3s] 0 tok $0.0000
+├── ✓ pmi_planner [29.2s] 0 tok $0.0000
+└── TOTAL: 0 tokens, $0.0000, 235.0s
+2026-05-18 04:01:51 [debug    ] executing_node                 node=policy turn=4
+2026-05-18 04:01:51 [debug    ] executing_node                 node=coordinator turn=5
+Workflow
+├── ✓ bootstrap [0.0s] 0 tok $0.0000
+├── ✓ intake [0.0s] 0 tok $0.0000
+├── ✓ router [33.0s] 0 tok $0.0000
+├── ✓ policy [0.0s] 0 tok $0.0000
+├── ✓ coordinator [30.9s] 0 tok $0.0000
+└── TOTAL: 0 tokens, $0.0000, 211.8s

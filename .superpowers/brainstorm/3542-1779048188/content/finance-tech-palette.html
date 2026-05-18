@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Finance + Technology Palette</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #0e0f14;
+    color: #e8eaf0;
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    padding: 32px 24px;
+  }
+
+  h1 {
+    font-size: 22px;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 6px;
+  }
+
+  .subtitle {
+    font-size: 14px;
+    color: rgba(255,255,255,0.45);
+    margin-bottom: 32px;
+    line-height: 1.5;
+    max-width: 560px;
+  }
+
+  .options-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+  }
+
+  .option-card {
+    border-radius: 12px;
+    overflow: hidden;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: border-color 200ms ease, transform 150ms ease, box-shadow 200ms ease;
+  }
+
+  .option-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  }
+
+  .option-card.selected {
+    border-color: #fff !important;
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.15), 0 8px 32px rgba(0,0,0,0.6);
+  }
+
+  .card-preview {
+    width: 100%;
+    aspect-ratio: 4/3;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .card-meta {
+    padding: 14px 16px;
+    background: #13141a;
+    border-top: 1px solid rgba(255,255,255,0.07);
+  }
+
+  .card-meta h3 {
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 4px;
+  }
+
+  .card-meta p {
+    font-size: 12px;
+    color: rgba(255,255,255,0.45);
+    line-height: 1.5;
+  }
+
+  .font-tag {
+    display: inline-block;
+    margin-top: 8px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: .05em;
+    background: rgba(255,255,255,0.07);
+    color: rgba(255,255,255,0.5);
+  }
+
+  .brand-note {
+    margin-top: 24px;
+    padding: 14px 18px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px;
+    font-size: 12px;
+    color: rgba(255,255,255,0.4);
+    line-height: 1.6;
+  }
+
+  .selected-indicator {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(255,255,255,0.1);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 24px;
+    padding: 10px 20px;
+    font-size: 13px;
+    color: #fff;
+    opacity: 0;
+    transition: opacity 200ms ease;
+    pointer-events: none;
+  }
+
+  .selected-indicator.visible { opacity: 1; }
+</style>
+</head>
+<body>
+
+<h1>Finance + Technology — Color &amp; Type Re-ideation</h1>
+<p class="subtitle">Three identities rooted in financial industry conventions. Each pairs a UI typeface with a data/monospace face for numbers and findings.</p>
+
+<div class="options-grid">
+
+  <!-- A: Quantitative / Bloomberg-era -->
+  <div class="option-card" id="card-a" onclick="selectCard('a')" style="border-color:rgba(255,255,255,0.08);">
+    <div class="card-preview" style="background:#03080f;">
+      <svg style="position:absolute;inset:0;width:100%;height:100%;opacity:.4;" viewBox="0 0 300 225" preserveAspectRatio="xMidYMid slice">
+        <defs>
+          <radialGradient id="ga1" cx="80%" cy="20%" r="50%">
+            <stop offset="0%" stop-color="#1d4ed8" stop-opacity=".3"/>
+            <stop offset="100%" stop-color="transparent"/>
+          </radialGradient>
+        </defs>
+        <rect fill="url(#ga1)" width="300" height="225"/>
+      </svg>
+      <div style="position:relative;padding:14px;font-family:'IBM Plex Sans',sans-serif;height:100%;">
+        <!-- top bar -->
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid rgba(29,78,216,0.25);">
+          <div style="width:18px;height:18px;border-radius:3px;background:#1d4ed8;display:flex;align-items:center;justify-content:center;">
+            <div style="width:8px;height:8px;border:1.5px solid #93c5fd;border-radius:1px;"></div>
+          </div>
+          <span style="font-size:10px;font-weight:700;color:#fff;letter-spacing:.08em;text-transform:uppercase;">Orchestra TPRM</span>
+          <span style="margin-left:auto;font-size:8px;color:#60a5fa;font-family:'IBM Plex Mono',monospace;letter-spacing:.06em;">v2.1.0</span>
+        </div>
+        <!-- verdict row -->
+        <div style="background:rgba(239,68,68,0.07);border:1px solid rgba(239,68,68,0.2);border-radius:6px;padding:8px;margin-bottom:8px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div style="position:relative;width:38px;height:38px;flex-shrink:0;">
+              <svg viewBox="0 0 38 38" style="transform:rotate(-90deg);">
+                <circle cx="19" cy="19" r="14" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="3.5"/>
+                <circle cx="19" cy="19" r="14" fill="none" stroke="#ef4444" stroke-width="3.5" stroke-dasharray="72 16" stroke-linecap="round"/>
+              </svg>
+              <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff;font-family:'IBM Plex Mono',monospace;">914</div>
+            </div>
+            <div>
+              <div style="font-size:11px;font-weight:700;color:#ef4444;letter-spacing:.12em;font-family:'IBM Plex Mono',monospace;">REJECT</div>
+              <div style="font-size:7px;color:rgba(255,255,255,0.4);margin-top:1px;">HashiCorp · M&A · 74 findings</div>
+            </div>
+          </div>
+          <div style="margin-top:6px;height:2px;border-radius:1px;overflow:hidden;display:flex;">
+            <div style="flex:3;background:#ef4444;"></div><div style="flex:8;background:#f97316;"></div><div style="flex:12;background:#eab308;"></div><div style="flex:4;background:#22c55e;"></div>
+          </div>
+        </div>
+        <!-- pipeline bar -->
+        <div style="background:rgba(29,78,216,0.08);border:1px solid rgba(29,78,216,0.2);border-radius:5px;padding:5px 7px;margin-bottom:7px;">
+          <div style="font-size:6px;color:#60a5fa;text-transform:uppercase;letter-spacing:.12em;font-family:'IBM Plex Mono',monospace;margin-bottom:3px;">PIPELINE</div>
+          <div style="display:flex;align-items:center;gap:2px;">
+            <div style="flex:1;text-align:center;"><div style="height:2px;background:#1d4ed8;border-radius:1px;margin-bottom:2px;"></div><div style="font-size:5.5px;color:#93c5fd;font-family:'IBM Plex Mono',monospace;">INTAKE</div></div>
+            <div style="color:rgba(255,255,255,0.15);font-size:7px;">›</div>
+            <div style="flex:1;text-align:center;"><div style="height:2px;background:#1d4ed8;border-radius:1px;margin-bottom:2px;"></div><div style="font-size:5.5px;color:#93c5fd;font-family:'IBM Plex Mono',monospace;">LEGAL</div></div>
+            <div style="color:rgba(255,255,255,0.15);font-size:7px;">›</div>
+            <div style="flex:1;text-align:center;"><div style="height:2px;background:#3b82f6;border-radius:1px;margin-bottom:2px;"></div><div style="font-size:5.5px;color:#60a5fa;font-family:'IBM Plex Mono',monospace;">SEC</div></div>
+            <div style="color:rgba(255,255,255,0.15);font-size:7px;">›</div>
+            <div style="flex:1;text-align:center;"><div style="height:2px;background:rgba(255,255,255,0.08);border-radius:1px;margin-bottom:2px;"></div><div style="font-size:5.5px;color:rgba(255,255,255,0.2);font-family:'IBM Plex Mono',monospace;">POLICY</div></div>
+          </div>
+        </div>
+        <!-- findings log -->
+        <div style="background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.06);border-radius:5px;padding:5px 7px;">
+          <div style="font-size:6.5px;color:#ef4444;font-family:'IBM Plex Mono',monospace;line-height:1.6;">[CRIT] IP ownership — no assignment agreement</div>
+          <div style="font-size:6.5px;color:#f97316;font-family:'IBM Plex Mono',monospace;line-height:1.6;">[HIGH] SOC 2 attestation expired 18mo</div>
+          <div style="font-size:6.5px;color:rgba(255,255,255,0.25);font-family:'IBM Plex Mono',monospace;line-height:1.6;">[MED_] GDPR DPA missing for EU transfer</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-meta">
+      <h3>A — Quantitative / Terminal Blue</h3>
+      <p>Near-black + electric blue. Bloomberg Terminal lineage — used by quant funds, prime brokerage, FactSet. Signals "institutional-grade." Monospace throughout data layer.</p>
+      <span class="font-tag">IBM Plex Sans + IBM Plex Mono</span>
+    </div>
+  </div>
+
+  <!-- B: Private Equity / Brass -->
+  <div class="option-card" id="card-b" onclick="selectCard('b')" style="border-color:rgba(255,255,255,0.08);">
+    <div class="card-preview" style="background:#07060a;">
+      <svg style="position:absolute;inset:0;width:100%;height:100%;opacity:.5;" viewBox="0 0 300 225" preserveAspectRatio="xMidYMid slice">
+        <defs>
+          <radialGradient id="gb1" cx="75%" cy="25%" r="50%">
+            <stop offset="0%" stop-color="#92400e" stop-opacity=".35"/>
+            <stop offset="100%" stop-color="transparent"/>
+          </radialGradient>
+          <radialGradient id="gb2" cx="25%" cy="75%" r="40%">
+            <stop offset="0%" stop-color="#78350f" stop-opacity=".2"/>
+            <stop offset="100%" stop-color="transparent"/>
+          </radialGradient>
+        </defs>
+        <rect fill="url(#gb1)" width="300" height="225"/>
+        <rect fill="url(#gb2)" width="300" height="225"/>
+      </svg>
+      <div style="position:relative;padding:14px;font-family:'DM Sans',sans-serif;height:100%;">
+        <!-- top bar — thin gold rule -->
+        <div style="height:1.5px;background:linear-gradient(90deg,#b45309,#d97706,#b45309);border-radius:1px;margin-bottom:9px;opacity:.8;"></div>
+        <div style="display:flex;align-items:center;gap:7px;margin-bottom:10px;">
+          <div style="width:18px;height:18px;border-radius:3px;background:linear-gradient(135deg,#92400e,#d97706);display:flex;align-items:center;justify-content:center;">
+            <div style="width:8px;height:8px;border:1.5px solid rgba(255,220,100,0.85);border-radius:1px;"></div>
+          </div>
+          <div>
+            <div style="font-size:10px;font-weight:600;color:#fef3c7;letter-spacing:.04em;">Orchestra TPRM</div>
+          </div>
+          <div style="margin-left:auto;font-size:7px;font-family:'DM Serif Display',serif;color:#d97706;font-style:italic;">M&amp;A Intelligence</div>
+        </div>
+        <!-- verdict hero — glass with gold border -->
+        <div style="background:rgba(239,68,68,0.06);border:1px solid rgba(220,38,38,0.2);border-radius:8px;padding:8px;margin-bottom:7px;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div style="position:relative;width:38px;height:38px;flex-shrink:0;">
+              <svg viewBox="0 0 38 38" style="transform:rotate(-90deg);">
+                <circle cx="19" cy="19" r="14" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="3.5"/>
+                <circle cx="19" cy="19" r="14" fill="none" stroke="#dc2626" stroke-width="3.5" stroke-dasharray="72 16" stroke-linecap="round"/>
+              </svg>
+              <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:7.5px;font-weight:700;color:#fff;font-family:'DM Sans',sans-serif;">914</div>
+            </div>
+            <div>
+              <div style="font-size:11px;font-weight:700;color:#dc2626;letter-spacing:.1em;">REJECT</div>
+              <div style="font-size:7px;color:rgba(255,243,199,0.35);margin-top:1px;">HashiCorp · M&A · 74 findings</div>
+            </div>
+          </div>
+          <div style="margin-top:6px;height:2px;border-radius:1px;overflow:hidden;display:flex;">
+            <div style="flex:3;background:#dc2626;"></div><div style="flex:8;background:#ea580c;"></div><div style="flex:12;background:#ca8a04;"></div><div style="flex:4;background:#16a34a;"></div>
+          </div>
+        </div>
+        <!-- pipeline with gold accent -->
+        <div style="background:rgba(180,83,9,0.08);border:1px solid rgba(180,83,9,0.2);border-radius:5px;padding:5px 7px;margin-bottom:7px;">
+          <div style="font-size:6px;color:#d97706;text-transform:uppercase;letter-spacing:.12em;margin-bottom:3px;">Pipeline</div>
+          <div style="display:flex;align-items:center;gap:2px;">
+            <div style="flex:1;text-align:center;"><div style="height:2px;background:#b45309;border-radius:1px;margin-bottom:2px;"></div><div style="font-size:5.5px;color:#fbbf24;">INTAKE</div></div>
+            <div style="color:rgba(255,255,255,0.15);font-size:7px;">›</div>
+            <div style="flex:1;text-align:center;"><div style="height:2px;background:#b45309;border-radius:1px;margin-bottom:2px;"></div><div style="font-size:5.5px;color:#fbbf24;">LEGAL</div></div>
+            <div style="color:rgba(255,255,255,0.15);font-size:7px;">›</div>
+            <div style="flex:1;text-align:center;"><div style="height:2px;background:#d97706;border-radius:1px;margin-bottom:2px;"></div><div style="font-size:5.5px;color:#fcd34d;">SECURITY</div></div>
+            <div style="color:rgba(255,255,255,0.15);font-size:7px;">›</div>
+            <div style="flex:1;text-align:center;"><div style="height:2px;background:rgba(255,255,255,0.08);border-radius:1px;margin-bottom:2px;"></div><div style="font-size:5.5px;color:rgba(255,255,255,0.2);">POLICY</div></div>
+          </div>
+        </div>
+        <!-- findings — serif for severity label -->
+        <div style="background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.06);border-radius:5px;padding:5px 7px;">
+          <div style="font-size:6.5px;color:#dc2626;font-family:'DM Sans',sans-serif;line-height:1.7;"><span style="font-family:'DM Serif Display',serif;font-style:italic;font-size:7px;">Critical · </span>IP ownership — no assignment</div>
+          <div style="font-size:6.5px;color:#ea580c;font-family:'DM Sans',sans-serif;line-height:1.7;"><span style="font-family:'DM Serif Display',serif;font-style:italic;font-size:7px;">High · </span>SOC 2 expired 18 months</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-meta">
+      <h3>B — Private Equity / Brass Gold</h3>
+      <p>Near-black + brass/gold. M&A advisory, PE fund, investment committee aesthetic. Serif display type adds gravitas for deal-level decisions. Uncommon — memorable to judges.</p>
+      <span class="font-tag">DM Serif Display + DM Sans</span>
+    </div>
+  </div>
+
+  <!-- C: Risk Intelligence / Jade -->
+  <div class="option-card" id="card-c" onclick="selectCard('c')" style="border-color:rgba(255,255,255,0.08);">
+    <div class="card-preview" style="background:#040c0e;">
+      <svg style="position:absolute;inset:0;width:100%;height:100%;opacity:.5;" viewBox="0 0 300 225" preserveAspectRatio="xMidYMid slice">
+        <defs>
+          <radialGradient id="gc1" cx="80%" cy="20%" r="55%">
+            <stop offset="0%" stop-color="#065f46" stop-opacity=".4"/>
+            <stop offset="100%" stop-color="transparent"/>
+          </radialGradient>
+          <radialGradient id="gc2" cx="20%" cy="80%" r="40%">
+            <stop offset="0%" stop-color="#064e3b" stop-opacity=".25"/>
+            <stop offset="100%" stop-color="transparent"/>
+          </radialGradient>
+        </defs>
+        <rect fill="url(#gc1)" width="300" height="225"/>
+        <rect fill="url(#gc2)" width="300" height="225"/>
+      </svg>
+      <div style="position:relative;padding:14px;font-family:'Space Grotesk',sans-serif;height:100%;">
+        <!-- header -->
+        <div style="display:flex;align-items:center;gap:7px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid rgba(16,185,129,0.15);">
+          <div style="width:18px;height:18px;border-radius:3px;background:linear-gradient(135deg,#059669,#065f46);display:flex;align-items:center;justify-content:center;">
+            <div style="width:8px;height:8px;border:1.5px solid rgba(52,211,153,0.9);border-radius:1px;"></div>
+          </div>
+          <span style="font-size:10px;font-weight:600;color:#ecfdf5;letter-spacing:.03em;">Orchestra TPRM</span>
+          <span style="margin-left:auto;font-size:7px;color:#34d399;font-family:'Space Mono',monospace;letter-spacing:.06em;">LIVE</span>
+        </div>
+        <!-- verdict -->
+        <div style="background:rgba(239,68,68,0.07);border:1px solid rgba(239,68,68,0.18);border-radius:8px;padding:8px;margin-bottom:7px;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div style="position:relative;width:38px;height:38px;flex-shrink:0;">
+              <svg viewBox="0 0 38 38" style="transform:rotate(-90deg);">
+                <circle cx="19" cy="19" r="14" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="3.5"/>
+                <circle cx="19" cy="19" r="14" fill="none" stroke="#ef4444" stroke-width="3.5" stroke-dasharray="72 16" stroke-linecap="round"/>
+              </svg>
+              <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff;font-family:'Space Mono',monospace;">914</div>
+            </div>
+            <div>
+              <div style="font-size:11px;font-weight:700;color:#ef4444;letter-spacing:.1em;font-family:'Space Mono',monospace;">REJECT</div>
+              <div style="font-size:7px;color:rgba(236,253,245,0.35);margin-top:1px;">HashiCorp · M&A · 74 findings</div>
+            </div>
+          </div>
+          <div style="margin-top:6px;height:2px;border-radius:1px;overflow:hidden;display:flex;">
+            <div style="flex:3;background:#ef4444;"></div><div style="flex:8;background:#f97316;"></div><div style="flex:12;background:#eab308;"></div><div style="flex:4;background:#22c55e;"></div>
+          </div>
+        </div>
+        <!-- pipeline with jade accent -->
+        <div style="background:rgba(5,150,105,0.08);border:1px solid rgba(5,150,105,0.2);border-radius:5px;padding:5px 7px;margin-bottom:7px;">
+          <div style="font-size:6px;color:#34d399;text-transform:uppercase;letter-spacing:.12em;font-family:'Space Mono',monospace;margin-bottom:3px;">PIPELINE</div>
+          <div style="display:flex;align-items:center;gap:2px;">
+            <div style="flex:1;text-align:center;"><div style="height:2px;background:#059669;border-radius:1px;margin-bottom:2px;"></div><div style="font-size:5.5px;color:#34d399;font-family:'Space Mono',monospace;">INTAKE</div></div>
+            <div style="color:rgba(255,255,255,0.15);font-size:7px;">›</div>
+            <div style="flex:1;text-align:center;"><div style="height:2px;background:#059669;border-radius:1px;margin-bottom:2px;"></div><div style="font-size:5.5px;color:#34d399;font-family:'Space Mono',monospace;">LEGAL</div></div>
+            <div style="color:rgba(255,255,255,0.15);font-size:7px;">›</div>
+            <div style="flex:1;text-align:center;"><div style="height:2px;background:#10b981;border-radius:1px;margin-bottom:2px;"></div><div style="font-size:5.5px;color:#6ee7b7;font-family:'Space Mono',monospace;">SEC</div></div>
+            <div style="color:rgba(255,255,255,0.15);font-size:7px;">›</div>
+            <div style="flex:1;text-align:center;"><div style="height:2px;background:rgba(255,255,255,0.08);border-radius:1px;margin-bottom:2px;"></div><div style="font-size:5.5px;color:rgba(255,255,255,0.2);font-family:'Space Mono',monospace;">POLICY</div></div>
+          </div>
+        </div>
+        <!-- findings -->
+        <div style="background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.06);border-radius:5px;padding:5px 7px;">
+          <div style="font-size:6.5px;color:#ef4444;font-family:'Space Mono',monospace;line-height:1.6;">CRIT · IP ownership — no assignment</div>
+          <div style="font-size:6.5px;color:#f97316;font-family:'Space Mono',monospace;line-height:1.6;">HIGH · SOC 2 expired 18 months</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-meta">
+      <h3>C — Risk Intelligence / Jade</h3>
+      <p>Deep teal-black + emerald. Green = financial safety/clearance, dark = seriousness. Risk management tooling (think: risk desks, compliance platforms, Riskified, Chainalysis). Grounded fintech.</p>
+      <span class="font-tag">Space Grotesk + Space Mono</span>
+    </div>
+  </div>
+
+</div>
+
+<div class="brand-note">
+  <strong style="color:rgba(255,255,255,0.6);">Brand compliance:</strong> All three options use distinct identities — no Google Blue, no Google product icons. Severity colors (red/orange/yellow/green) are universal financial risk vocabulary. Attribution reads "Powered by Gemini 2.5 Flash" in subdued subheader text only.
+</div>
+
+<div class="selected-indicator" id="selection-indicator">Selected: —</div>
+
+<script>
+  let selected = null;
+  function selectCard(id) {
+    document.querySelectorAll('.option-card').forEach(c => c.classList.remove('selected'));
+    document.getElementById('card-' + id).classList.add('selected');
+    selected = id;
+    const labels = { a: 'A — Quantitative / Terminal Blue', b: 'B — Private Equity / Brass Gold', c: 'C — Risk Intelligence / Jade' };
+    const ind = document.getElementById('selection-indicator');
+    ind.textContent = 'Selected: ' + labels[id];
+    ind.classList.add('visible');
+
+    // write to events if companion infrastructure available
+    if (window.__companion) {
+      window.__companion.recordChoice(id, labels[id]);
+    }
+  }
+</script>
+
+</body>
+</html>

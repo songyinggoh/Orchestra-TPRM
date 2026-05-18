@@ -32,6 +32,8 @@ from orchestra_tprm.agents.pmi_planner import PMIPlannerAgent
 from orchestra_tprm.agents.policy import PolicyAgent
 from orchestra_tprm.agents.specialists.code import CodeAgent
 from orchestra_tprm.agents.specialists.external import ExternalAgent
+from orchestra_tprm.agents.remediation import RemediationAgent
+from orchestra_tprm.agents.risk_score import RiskScoreAgent
 from orchestra_tprm.agents.specialists.esg import ESGAgent
 from orchestra_tprm.agents.specialists.legal import LegalAgent
 from orchestra_tprm.agents.specialists.security import SecurityAgent
@@ -522,6 +524,30 @@ def _make_pmi_planner_shim(planner: PMIPlannerAgent) -> BaseAgent:
     return _PMIPlannerShim()
 
 
+def _make_risk_score_shim(agent: RiskScoreAgent) -> BaseAgent:
+    class _RiskScoreShim(BaseAgent):
+        name: str = "RiskScoreAgent"
+
+        async def run(self, input: Any, context: ExecutionContext) -> AgentResult:  # type: ignore[override]
+            state = input if isinstance(input, dict) else (context.state or {})
+            update = await agent(state, ctx=context)
+            return AgentResult(agent_name=self.name, state_updates=update)
+
+    return _RiskScoreShim()
+
+
+def _make_remediation_shim(agent: RemediationAgent) -> BaseAgent:
+    class _RemediationShim(BaseAgent):
+        name: str = "RemediationAgent"
+
+        async def run(self, input: Any, context: ExecutionContext) -> AgentResult:  # type: ignore[override]
+            state = input if isinstance(input, dict) else (context.state or {})
+            update = await agent(state, ctx=context)
+            return AgentResult(agent_name=self.name, state_updates=update)
+
+    return _RemediationShim()
+
+
 # ---------------------------------------------------------------------------
 # Bootstrap shim (also needs nothing from ctx but kept as an AgentNode for
 # uniformity and to expose ``output_key="github_url"`` for invariant W-1).
@@ -592,6 +618,16 @@ def build_graph(
     policy = PolicyAgent(
         mode_config=cfg, bq=bq_shim, dataset=bq_dataset, table=bq_table
     )
+    # RiskScoreAgent reuses the same policy YAML as PolicyAgent (weights +
+    # risk_score_thresholds). Load it once here so the agent gets the data
+    # without re-parsing.
+    import yaml as _yaml_for_risk
+    from pathlib import Path as _Path_for_risk
+    _policy_data = _yaml_for_risk.safe_load(
+        _Path_for_risk(cfg.policy_pack).read_text(encoding="utf-8")
+    )
+    risk_score_agent = RiskScoreAgent(policy=_policy_data, model=cfg.policy_model)
+    remediation_agent = RemediationAgent(mode=cfg.name, model=cfg.policy_model)
     coordinator = Coordinator(
         mode_config=cfg,
         sheets=adapters.sheets,
@@ -652,6 +688,15 @@ def build_graph(
         specialist_node_ids.append(node_id)
 
     g.add_node(
+        "risk_score",
+        AgentNode(
+            agent=_make_risk_score_shim(risk_score_agent),
+            map_output=True,
+            input_mapper=lambda s: s,
+        ),
+        output_key="risk_assessment",
+    )
+    g.add_node(
         "policy",
         AgentNode(
             agent=_make_policy_shim(policy),
@@ -659,6 +704,15 @@ def build_graph(
             input_mapper=lambda s: s,
         ),
         output_key="policy_verdict",
+    )
+    g.add_node(
+        "remediation",
+        AgentNode(
+            agent=_make_remediation_shim(remediation_agent),
+            map_output=True,
+            input_mapper=lambda s: s,
+        ),
+        output_key="remediation_plan",
     )
     g.add_node(
         "coordinator",
@@ -690,8 +744,12 @@ def build_graph(
     else:
         g.add_edge("intake", "router")
 
-    g.add_parallel("router", specialist_node_ids, join_node="policy")
-    g.add_edge("policy", "coordinator")
+    # Specialists fan out from router, join at risk_score (the new node).
+    # risk_score then feeds into policy → remediation → coordinator.
+    g.add_parallel("router", specialist_node_ids, join_node="risk_score")
+    g.add_edge("risk_score", "policy")
+    g.add_edge("policy", "remediation")
+    g.add_edge("remediation", "coordinator")
 
     if cfg.output_kind == "doc":
         # M&A mode: PMI planner runs after coordinator

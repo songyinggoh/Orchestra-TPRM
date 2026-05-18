@@ -154,6 +154,8 @@ class RiskScoreAgent:
             resp = await ctx.provider.complete(messages=messages, model=self.model)
             text = strip_json_fences(resp.content if hasattr(resp, "content") else str(resp))
             obj = json.loads(text)
+            if not isinstance(obj, dict):
+                raise ValueError(f"LLM returned non-object JSON ({type(obj).__name__})")
             explanation = str(obj.get("explanation", "")).strip()
             one_liners = [str(s) for s in obj.get("driver_one_liners", [])]
             if not explanation or not one_liners:

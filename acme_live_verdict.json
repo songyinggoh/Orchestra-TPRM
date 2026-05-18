@@ -1,0 +1,695 @@
+{
+  "mode": "vendor",
+  "subject_name": "Acme Cloud Analytics",
+  "policy_verdict": "reject",
+  "risk_score": 189.0,
+  "verdict_doc_id": "1cH0Fj5L-SruGXd9SxvaSHCDeZAHknmoLpDn7Zl2Gi_A",
+  "verdict_local_path": "file://C:/Users/user/AppData/Local/Temp/orchestra_tprm/1cH0Fj5L-SruGXd9SxvaSHCDeZAHknmoLpDn7Zl2Gi_A.csv",
+  "findings": [
+    {
+      "agent": "LegalAgent",
+      "category": "data-protection",
+      "severity": "high",
+      "evidence": [
+        {
+          "file_id": "msa.pdf",
+          "document_id": null,
+          "page": null,
+          "offset": null,
+          "snippet": "2"
+        }
+      ],
+      "summary": "Vendor can process customer data globally without notice, raising data residency and compliance risks.",
+      "raw": {
+        "category": "data-protection",
+        "severity": "high",
+        "summary": "Vendor can process customer data globally without notice, raising data residency and compliance risks.",
+        "citation_page": null,
+        "clause_id": "2"
+      }
+    },
+    {
+      "agent": "LegalAgent",
+      "category": "data-protection",
+      "severity": "medium",
+      "evidence": [
+        {
+          "file_id": "msa.pdf",
+          "document_id": null,
+          "page": null,
+          "offset": null,
+          "snippet": "2"
+        }
+      ],
+      "summary": "Vendor retains broad rights to use aggregated, anonymized customer data for internal purposes, which might carry re-identification risks if anonymization is insufficient.",
+      "raw": {
+        "category": "data-protection",
+        "severity": "medium",
+        "summary": "Vendor retains broad rights to use aggregated, anonymized customer data for internal purposes, which might carry re-identification risks if anonymization is insufficient.",
+        "citation_page": null,
+        "clause_id": "2"
+      }
+    },
+    {
+      "agent": "LegalAgent",
+      "category": "data-protection",
+      "severity": "medium",
+      "evidence": [
+        {
+          "file_id": "msa.pdf",
+          "document_id": null,
+          "page": null,
+          "offset": null,
+          "snippet": "2"
+        }
+      ],
+      "summary": "Data deletion after termination can take up to 180 days, which may be too long for certain compliance requirements or sensitive data.",
+      "raw": {
+        "category": "data-protection",
+        "severity": "medium",
+        "summary": "Data deletion after termination can take up to 180 days, which may be too long for certain compliance requirements or sensitive data.",
+        "citation_page": null,
+        "clause_id": "2"
+      }
+    },
+    {
+      "agent": "LegalAgent",
+      "category": "confidentiality",
+      "severity": "low",
+      "evidence": [
+        {
+          "file_id": "msa.pdf",
+          "document_id": null,
+          "page": null,
+          "offset": null,
+          "snippet": "3"
+        }
+      ],
+      "summary": "Vendor's confidentiality obligations are weakened by standard exceptions that could be broadly interpreted.",
+      "raw": {
+        "category": "confidentiality",
+        "severity": "low",
+        "summary": "Vendor's confidentiality obligations are weakened by standard exceptions that could be broadly interpreted.",
+        "citation_page": null,
+        "clause_id": "3"
+      }
+    },
+    {
+      "agent": "LegalAgent",
+      "category": "indemnity",
+      "severity": "critical",
+      "evidence": [
+        {
+          "file_id": "msa.pdf",
+          "document_id": null,
+          "page": null,
+          "offset": null,
+          "snippet": "4"
+        }
+      ],
+      "summary": "The indemnification clause is broad and one-sided, forcing the Customer to indemnify the Vendor for risks potentially caused by the Vendor's own service or actions.",
+      "raw": {
+        "category": "indemnity",
+        "severity": "critical",
+        "summary": "The indemnification clause is broad and one-sided, forcing the Customer to indemnify the Vendor for risks potentially caused by the Vendor's own service or actions.",
+        "citation_page": null,
+        "clause_id": "4"
+      }
+    },
+    {
+      "agent": "LegalAgent",
+      "category": "liability",
+      "severity": "high",
+      "evidence": [
+        {
+          "file_id": "msa.pdf",
+          "document_id": null,
+          "page": null,
+          "offset": null,
+          "snippet": "4"
+        }
+      ],
+      "summary": "Vendor's liability is severely capped at three months of fees, which may be insufficient to cover potential damages to the Customer.",
+      "raw": {
+        "category": "liability",
+        "severity": "high",
+        "summary": "Vendor's liability is severely capped at three months of fees, which may be insufficient to cover potential damages to the Customer.",
+        "citation_page": null,
+        "clause_id": "4"
+      }
+    },
+    {
+      "agent": "LegalAgent",
+      "category": "liability",
+      "severity": "high",
+      "evidence": [
+        {
+          "file_id": "msa.pdf",
+          "document_id": null,
+          "page": null,
+          "offset": null,
+          "snippet": "5"
+        }
+      ],
+      "summary": "Exclusion of consequential damages significantly limits the Customer's potential recovery for indirect business losses.",
+      "raw": {
+        "category": "liability",
+        "severity": "high",
+        "summary": "Exclusion of consequential damages significantly limits the Customer's potential recovery for indirect business losses.",
+        "citation_page": null,
+        "clause_id": "5"
+      }
+    },
+    {
+      "agent": "LegalAgent",
+      "category": "liability",
+      "severity": "critical",
+      "evidence": [
+        {
+          "file_id": "msa.pdf",
+          "document_id": null,
+          "page": null,
+          "offset": null,
+          "snippet": "5"
+        }
+      ],
+      "summary": "The total aggregate liability of the Vendor is capped at three months of fees paid, which is critically low given the potential for significant customer damages.",
+      "raw": {
+        "category": "liability",
+        "severity": "critical",
+        "summary": "The total aggregate liability of the Vendor is capped at three months of fees paid, which is critically low given the potential for significant customer damages.",
+        "citation_page": null,
+        "clause_id": "5"
+      }
+    },
+    {
+      "agent": "LegalAgent",
+      "category": "termination",
+      "severity": "medium",
+      "evidence": [
+        {
+          "file_id": "msa.pdf",
+          "document_id": null,
+          "page": null,
+          "offset": null,
+          "snippet": "6"
+        }
+      ],
+      "summary": "The 15-day non-renewal notice period for a one-year auto-renewing term is unusually short and poses a risk of inadvertent renewal.",
+      "raw": {
+        "category": "termination",
+        "severity": "medium",
+        "summary": "The 15-day non-renewal notice period for a one-year auto-renewing term is unusually short and poses a risk of inadvertent renewal.",
+        "citation_page": null,
+        "clause_id": "6"
+      }
+    },
+    {
+      "agent": "LegalAgent",
+      "category": "termination",
+      "severity": "high",
+      "evidence": [
+        {
+          "file_id": "msa.pdf",
+          "document_id": null,
+          "page": null,
+          "offset": null,
+          "snippet": "6"
+        }
+      ],
+      "summary": "Vendor retains the right to immediately terminate or suspend services without a cure period for payment breaches or AUP violations, which is unfavorable to the Customer.",
+      "raw": {
+        "category": "termination",
+        "severity": "high",
+        "summary": "Vendor retains the right to immediately terminate or suspend services without a cure period for payment breaches or AUP violations, which is unfavorable to the Customer.",
+        "citation_page": null,
+        "clause_id": "6"
+      }
+    },
+    {
+      "agent": "LegalAgent",
+      "category": "ip-assignment",
+      "severity": "medium",
+      "evidence": [
+        {
+          "file_id": "msa.pdf",
+          "document_id": null,
+          "page": null,
+          "offset": null,
+          "snippet": "7"
+        }
+      ],
+      "summary": "All IP rights to improvements or derivative works, even if based on Customer input, are exclusively assigned to the Vendor.",
+      "raw": {
+        "category": "ip-assignment",
+        "severity": "medium",
+        "summary": "All IP rights to improvements or derivative works, even if based on Customer input, are exclusively assigned to the Vendor.",
+        "citation_page": null,
+        "clause_id": "7"
+      }
+    },
+    {
+      "agent": "LegalAgent",
+      "category": "data-protection",
+      "severity": "medium",
+      "evidence": [
+        {
+          "file_id": "msa.pdf",
+          "document_id": null,
+          "page": null,
+          "offset": null,
+          "snippet": "7"
+        }
+      ],
+      "summary": "Customer grants a perpetual, irrevocable license for Vendor to use anonymized Customer Data, extending beyond contract termination.",
+      "raw": {
+        "category": "data-protection",
+        "severity": "medium",
+        "summary": "Customer grants a perpetual, irrevocable license for Vendor to use anonymized Customer Data, extending beyond contract termination.",
+        "citation_page": null,
+        "clause_id": "7"
+      }
+    },
+    {
+      "agent": "LegalAgent",
+      "category": "dispute-resolution",
+      "severity": "critical",
+      "evidence": [
+        {
+          "file_id": "msa.pdf",
+          "document_id": null,
+          "page": null,
+          "offset": null,
+          "snippet": "8"
+        }
+      ],
+      "summary": "The clause forces binding arbitration in a specific jurisdiction, waives the right to a jury trial, and prohibits class action claims, significantly limiting the Customer's dispute resolution options.",
+      "raw": {
+        "category": "dispute-resolution",
+        "severity": "critical",
+        "summary": "The clause forces binding arbitration in a specific jurisdiction, waives the right to a jury trial, and prohibits class action claims, significantly limiting the Customer's dispute resolution options.",
+        "citation_page": null,
+        "clause_id": "8"
+      }
+    },
+    {
+      "agent": "LegalAgent",
+      "category": "data-protection",
+      "severity": "high",
+      "evidence": [
+        {
+          "file_id": "msa.pdf",
+          "document_id": null,
+          "page": null,
+          "offset": null,
+          "snippet": "9"
+        }
+      ],
+      "summary": "Vendor can engage subprocessors without Customer's consent or direct notification, raising data processing and compliance risks.",
+      "raw": {
+        "category": "data-protection",
+        "severity": "high",
+        "summary": "Vendor can engage subprocessors without Customer's consent or direct notification, raising data processing and compliance risks.",
+        "citation_page": null,
+        "clause_id": "9"
+      }
+    },
+    {
+      "agent": "LegalAgent",
+      "category": "security",
+      "severity": "medium",
+      "evidence": [
+        {
+          "file_id": "msa.pdf",
+          "document_id": null,
+          "page": null,
+          "offset": null,
+          "snippet": "10"
+        }
+      ],
+      "summary": "The security measures are defined vaguely as \"commercially reasonable,\" lacking specific standards or certifications.",
+      "raw": {
+        "category": "security",
+        "severity": "medium",
+        "summary": "The security measures are defined vaguely as \"commercially reasonable,\" lacking specific standards or certifications.",
+        "citation_page": null,
+        "clause_id": "10"
+      }
+    },
+    {
+      "agent": "LegalAgent",
+      "category": "security",
+      "severity": "low",
+      "evidence": [
+        {
+          "file_id": "msa.pdf",
+          "document_id": null,
+          "page": null,
+          "offset": null,
+          "snippet": "10"
+        }
+      ],
+      "summary": "Notification of security incidents within 72 hours of Vendor \"becoming aware\" could be interpreted broadly, potentially delaying timely notification.",
+      "raw": {
+        "category": "security",
+        "severity": "low",
+        "summary": "Notification of security incidents within 72 hours of Vendor \"becoming aware\" could be interpreted broadly, potentially delaying timely notification.",
+        "citation_page": null,
+        "clause_id": "10"
+      }
+    },
+    {
+      "agent": "SecurityAgent",
+      "category": "soc2-cc6.1",
+      "severity": "high",
+      "evidence": [
+        {
+          "file_id": "soc2.pdf",
+          "document_id": null,
+          "page": null,
+          "offset": null,
+          "snippet": ""
+        }
+      ],
+      "summary": "Manual provisioning process led to former employees retaining elevated administrative privileges for an extended period due to lack of automated deprovisioning.",
+      "raw": {
+        "control_id": "CC6.1",
+        "status": "gap",
+        "severity": "high",
+        "summary": "Manual provisioning process led to former employees retaining elevated administrative privileges for an extended period due to lack of automated deprovisioning.",
+        "citation_page": null
+      }
+    },
+    {
+      "agent": "SecurityAgent",
+      "category": "soc2-cc6.7",
+      "severity": "high",
+      "evidence": [
+        {
+          "file_id": "soc2.pdf",
+          "document_id": null,
+          "page": null,
+          "offset": null,
+          "snippet": ""
+        }
+      ],
+      "summary": "Two internal API endpoints transmit data using the outdated and insecure TLS 1.1 protocol for legacy customers.",
+      "raw": {
+        "control_id": "CC6.7",
+        "status": "gap",
+        "severity": "high",
+        "summary": "Two internal API endpoints transmit data using the outdated and insecure TLS 1.1 protocol for legacy customers.",
+        "citation_page": null
+      }
+    },
+    {
+      "agent": "SecurityAgent",
+      "category": "soc2-cc7.2",
+      "severity": "high",
+      "evidence": [
+        {
+          "file_id": "soc2.pdf",
+          "document_id": null,
+          "page": null,
+          "offset": null,
+          "snippet": ""
+        }
+      ],
+      "summary": "The SIEM system lacks coverage for logs and incident monitoring originating from third-party subprocessor environments.",
+      "raw": {
+        "control_id": "CC7.2",
+        "status": "gap",
+        "severity": "high",
+        "summary": "The SIEM system lacks coverage for logs and incident monitoring originating from third-party subprocessor environments.",
+        "citation_page": null
+      }
+    },
+    {
+      "agent": "SecurityAgent",
+      "category": "soc2-a1.2",
+      "severity": "low",
+      "evidence": [
+        {
+          "file_id": "soc2.pdf",
+          "document_id": null,
+          "page": null,
+          "offset": null,
+          "snippet": ""
+        }
+      ],
+      "summary": "Environmental controls for primary and backup data centers are adequate.",
+      "raw": {
+        "control_id": "A1.2",
+        "status": "covered",
+        "severity": "low",
+        "summary": "Environmental controls for primary and backup data centers are adequate.",
+        "citation_page": null
+      }
+    },
+    {
+      "agent": "SecurityAgent",
+      "category": "soc2-cc9.2",
+      "severity": "critical",
+      "evidence": [
+        {
+          "file_id": "soc2.pdf",
+          "document_id": null,
+          "page": null,
+          "offset": null,
+          "snippet": ""
+        }
+      ],
+      "summary": "A security incident involving unauthorized access was not escalated according to documented procedures and affected customers were not notified as required by policy.",
+      "raw": {
+        "control_id": "CC9.2",
+        "status": "gap",
+        "severity": "critical",
+        "summary": "A security incident involving unauthorized access was not escalated according to documented procedures and affected customers were not notified as required by policy.",
+        "citation_page": null
+      }
+    },
+    {
+      "agent": "SecurityAgent",
+      "category": "soc2-encryption at rest",
+      "severity": "medium",
+      "evidence": [
+        {
+          "file_id": "soc2.pdf",
+          "document_id": null,
+          "page": null,
+          "offset": null,
+          "snippet": ""
+        }
+      ],
+      "summary": "Customer data is encrypted at rest with AES-128, which deviates from the stated policy of AES-256 for legacy storage tiers.",
+      "raw": {
+        "control_id": "ENCRYPTION AT REST",
+        "status": "partial",
+        "severity": "medium",
+        "summary": "Customer data is encrypted at rest with AES-128, which deviates from the stated policy of AES-256 for legacy storage tiers.",
+        "citation_page": null
+      }
+    },
+    {
+      "agent": "SecurityAgent",
+      "category": "soc2-penetration testing",
+      "severity": "medium",
+      "evidence": [
+        {
+          "file_id": "soc2.pdf",
+          "document_id": null,
+          "page": null,
+          "offset": null,
+          "snippet": ""
+        }
+      ],
+      "summary": "The annual penetration test was conducted internally, with no independent third-party penetration test performed during the period.",
+      "raw": {
+        "control_id": "PENETRATION TESTING",
+        "status": "gap",
+        "severity": "medium",
+        "summary": "The annual penetration test was conducted internally, with no independent third-party penetration test performed during the period.",
+        "citation_page": null
+      }
+    },
+    {
+      "agent": "SecurityAgent",
+      "category": "soc2-key risk indicators - failed login attempt threshold",
+      "severity": "high",
+      "evidence": [
+        {
+          "file_id": "soc2.pdf",
+          "document_id": null,
+          "page": null,
+          "offset": null,
+          "snippet": ""
+        }
+      ],
+      "summary": "Failed login attempt thresholds are not configured for API authentication endpoints.",
+      "raw": {
+        "control_id": "KEY RISK INDICATORS - Failed login attempt threshold",
+        "status": "gap",
+        "severity": "high",
+        "summary": "Failed login attempt thresholds are not configured for API authentication endpoints.",
+        "citation_page": null
+      }
+    },
+    {
+      "agent": "ExternalAgent",
+      "category": "regulatory",
+      "severity": "medium",
+      "evidence": [
+        {
+          "file_id": "soc2.pdf",
+          "document_id": null,
+          "page": null,
+          "offset": null,
+          "snippet": ""
+        }
+      ],
+      "summary": "Acme Cloud Analytics had a control exception where three user accounts retained elevated administrative privileges for 47 days post-departure, indicating a significant logical access control weakness.",
+      "raw": {
+        "source_url": null
+      }
+    },
+    {
+      "agent": "ExternalAgent",
+      "category": "regulatory",
+      "severity": "medium",
+      "evidence": [
+        {
+          "file_id": "soc2.pdf",
+          "document_id": null,
+          "page": null,
+          "offset": null,
+          "snippet": ""
+        }
+      ],
+      "summary": "Acme Cloud Analytics uses deprecated TLS 1.1 for two internal API endpoints, falling below current security standards.",
+      "raw": {
+        "source_url": null
+      }
+    },
+    {
+      "agent": "ExternalAgent",
+      "category": "regulatory",
+      "severity": "medium",
+      "evidence": [
+        {
+          "file_id": "soc2.pdf",
+          "document_id": null,
+          "page": null,
+          "offset": null,
+          "snippet": ""
+        }
+      ],
+      "summary": "Acme Cloud Analytics' SIEM system lacks log ingestion from third-party subprocessor environments, creating a security monitoring coverage gap.",
+      "raw": {
+        "source_url": null
+      }
+    },
+    {
+      "agent": "ExternalAgent",
+      "category": "regulatory",
+      "severity": "high",
+      "evidence": [
+        {
+          "file_id": "soc2.pdf",
+          "document_id": null,
+          "page": null,
+          "offset": null,
+          "snippet": ""
+        }
+      ],
+      "summary": "Acme Cloud Analytics failed to escalate a security incident involving unauthorized access to a development environment and did not report it to affected customers, violating their incident response policy.",
+      "raw": {
+        "source_url": null
+      }
+    },
+    {
+      "agent": "ExternalAgent",
+      "category": "regulatory",
+      "severity": "medium",
+      "evidence": [
+        {
+          "file_id": "soc2.pdf",
+          "document_id": null,
+          "page": null,
+          "offset": null,
+          "snippet": ""
+        }
+      ],
+      "summary": "Acme Cloud Analytics encrypts legacy customer data at rest with AES-128, despite a published policy stating AES-256 encryption, indicating a discrepancy in security controls.",
+      "raw": {
+        "source_url": null
+      }
+    },
+    {
+      "agent": "ExternalAgent",
+      "category": "regulatory",
+      "severity": "medium",
+      "evidence": [
+        {
+          "file_id": "soc2.pdf",
+          "document_id": null,
+          "page": null,
+          "offset": null,
+          "snippet": ""
+        }
+      ],
+      "summary": "Acme Cloud Analytics conducted penetration testing internally, lacking independent third-party validation during the audit period.",
+      "raw": {
+        "source_url": null
+      }
+    },
+    {
+      "agent": "ExternalAgent",
+      "category": "regulatory",
+      "severity": "medium",
+      "evidence": [
+        {
+          "file_id": "soc2.pdf",
+          "document_id": null,
+          "page": null,
+          "offset": null,
+          "snippet": ""
+        }
+      ],
+      "summary": "Acme Cloud Analytics has a mean time to patch critical vulnerabilities of 23 days, exceeding its internal target of 14 days.",
+      "raw": {
+        "source_url": null
+      }
+    },
+    {
+      "agent": "ExternalAgent",
+      "category": "regulatory",
+      "severity": "high",
+      "evidence": [
+        {
+          "file_id": "soc2.pdf",
+          "document_id": null,
+          "page": null,
+          "offset": null,
+          "snippet": ""
+        }
+      ],
+      "summary": "Acme Cloud Analytics lacks configuration for failed login attempt thresholds on its API authentication endpoints, posing a significant security risk.",
+      "raw": {
+        "source_url": null
+      }
+    },
+    {
+      "agent": "CodeAgent",
+      "category": "code-risk",
+      "severity": "high",
+      "evidence": [],
+      "summary": "The Master Service Agreement outlines significant software supply-chain risks, particularly concerning the vendor's ability to engage subprocessors without explicit customer consent and broad rights over data processing jurisdictions, coupled with vague 'commercially reasonable' security commitments.",
+      "raw": {
+        "summary": "The Master Service Agreement outlines significant software supply-chain risks, particularly concerning the vendor's ability to engage subprocessors without explicit customer consent and broad rights over data processing jurisdictions, coupled with vague 'commercially reasonable' security commitments.",
+        "tech_debt": "high",
+        "license": null,
+        "patch_needed": false
+      }
+    }
+  ]
+}

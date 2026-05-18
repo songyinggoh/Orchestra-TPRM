@@ -141,6 +141,20 @@ class RemediationAgent:
                 )
             }
 
+        # LLM may return a bare list instead of the spec'd object — coerce
+        # to empty plan rather than crash. (Fail-soft, same as RiskScoreAgent.)
+        if not isinstance(obj, dict):
+            logger.warning(
+                "RemediationAgent: LLM returned non-object JSON (%s); emitting empty plan",
+                type(obj).__name__,
+            )
+            return {
+                "remediation_plan": RemediationPlan(
+                    items=[], horizon_days=0,
+                    summary="Remediation plan unavailable — LLM returned unexpected shape.",
+                )
+            }
+
         items_raw = obj.get("items", [])
         items: list[RemediationItem] = []
         for raw in items_raw:

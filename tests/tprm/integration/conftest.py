@@ -170,6 +170,43 @@ def _vendor_responses() -> list[LLMResponse]:
                 "tech_debt": "low",
             })
         ),
+        # ESGAgent — sustainability/governance review
+        LLMResponse(
+            content=json.dumps([{
+                "category": "net-zero-commitment",
+                "severity": "medium",
+                "summary": "Vendor has not published a net-zero target year.",
+                "citation_page": None,
+            }])
+        ),
+        # RiskScoreAgent — narrate top drivers + overall explanation
+        LLMResponse(
+            content=json.dumps({
+                "explanation": "Risk concentrated in legal and security dimensions.",
+                "driver_one_liners": [
+                    "Liability cap is 1x annual fees, below industry norm.",
+                    "MFA not enforced for admin console.",
+                    "Net-zero commitment year undisclosed.",
+                ],
+            })
+        ),
+        # RemediationAgent — vendor-framed action plan
+        LLMResponse(
+            content=json.dumps({
+                "items": [
+                    {
+                        "finding_id": "placeholder-finding-id",
+                        "action": "Renegotiate liability cap to 12x annual fees before signing.",
+                        "owner": "vendor",
+                        "priority": "P0",
+                        "leverage": "MSA section 8.2 (liability cap clause).",
+                        "est_effort_days": 14,
+                    },
+                ],
+                "horizon_days": 14,
+                "summary": "Single P0: liability cap renegotiation required for conditional approval.",
+            })
+        ),
         # Coordinator (writes deal-memo / approval-form body)
         LLMResponse(
             content="Recommendation: CONDITIONAL APPROVE. Renegotiate liability cap to 12x annual fees."
@@ -249,6 +286,43 @@ def _ma_responses() -> list[LLMResponse]:
                 "exposure_usd_high": None,
                 "citation_page": 45,
             }])
+        ),
+        # ESGAgent — sustainability/governance review
+        LLMResponse(
+            content=json.dumps([{
+                "category": "modern-slavery-statement",
+                "severity": "high",
+                "summary": "Target has not published a UK MSA 2015 compliant statement.",
+                "citation_page": None,
+            }])
+        ),
+        # RiskScoreAgent — narrate top drivers + overall explanation
+        LLMResponse(
+            content=json.dumps({
+                "explanation": "Risk concentrated in legal and financial dimensions; ESG gap noted.",
+                "driver_one_liners": [
+                    "Change-of-control clause accelerates executive equity.",
+                    "Operating margin negative at (12%).",
+                    "No modern-slavery statement published.",
+                ],
+            })
+        ),
+        # RemediationAgent — buyer-framed (M&A) action plan
+        LLMResponse(
+            content=json.dumps({
+                "items": [
+                    {
+                        "finding_id": "placeholder-finding-id",
+                        "action": "Negotiate change-of-control rep with 18-month indemnity survival.",
+                        "owner": "buyer",
+                        "priority": "P0",
+                        "leverage": "SPA section 8.2 reps & warranties + RWI policy stub.",
+                        "est_effort_days": 30,
+                    },
+                ],
+                "horizon_days": 30,
+                "summary": "Single P0: structure change-of-control via SPA reps + RWI.",
+            })
         ),
         # Coordinator — deal-memo sections
         LLMResponse(
