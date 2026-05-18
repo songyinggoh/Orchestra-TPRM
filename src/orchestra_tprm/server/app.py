@@ -105,14 +105,14 @@ _NODE_LABELS: dict[str, str] = {
 # Vendor-mode node order (for progress display)
 _VENDOR_PIPELINE = [
     "bootstrap_node", "intake_node", "router",
-    "LegalAgent", "SecurityAgent", "ExternalAgent", "CodeAgent",
-    "policy", "coordinator",
+    "LegalAgent", "SecurityAgent", "ExternalAgent", "CodeAgent", "ESGAgent",
+    "risk_score", "policy", "remediation", "coordinator",
 ]
 _MA_PIPELINE = [
     "bootstrap_node", "intake_node", "vdr_gate", "router",
     "LegalAgent", "SecurityAgent", "ExternalAgent", "CodeAgent",
-    "FinancialAgent", "SaaSMetricsAgent",
-    "policy", "coordinator", "pmi_planner",
+    "FinancialAgent", "SaaSMetricsAgent", "ESGAgent",
+    "risk_score", "policy", "remediation", "coordinator", "pmi_planner",
 ]
 
 
