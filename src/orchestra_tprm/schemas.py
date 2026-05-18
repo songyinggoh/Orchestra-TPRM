@@ -89,6 +89,36 @@ class PMIPlan(BaseModel):
     items: list[PMIItem] = Field(default_factory=list)
 
 
+class RiskDriver(BaseModel):
+    dimension: str
+    finding_id: str
+    severity: SeverityLiteral
+    one_liner: str
+
+
+class RiskScore(BaseModel):
+    overall: int = Field(ge=0, le=100)
+    verdict: Literal["green", "amber", "red"]
+    dimensions: dict[str, int] = Field(default_factory=dict)
+    top_risk_drivers: list[RiskDriver] = Field(default_factory=list)
+    explanation: str = ""
+
+
+class RemediationItem(BaseModel):
+    finding_id: str
+    action: str
+    owner: Literal["vendor", "buyer", "both"]
+    priority: Literal["P0", "P1", "P2"]
+    leverage: str
+    est_effort_days: int | None = None
+
+
+class RemediationPlan(BaseModel):
+    items: list[RemediationItem] = Field(default_factory=list)
+    horizon_days: int = 0
+    summary: str = ""
+
+
 class TPRMState(WorkflowState):
     # Inputs
     mode: Literal["vendor", "ma"] = "vendor"
@@ -117,3 +147,8 @@ class TPRMState(WorkflowState):
     ma_scope: MAScope | None = None
     ic_memo: ICMemo | None = None
     pmi_plan: PMIPlan | None = None
+    # 3-agent delta (2026-05-18): RiskScoreAgent + RemediationAgent outputs
+    # Note: legacy `risk_score: float` above is PolicyAgent's weighted score;
+    # `risk_assessment` is the new RiskScoreAgent's structured output.
+    risk_assessment: RiskScore | None = None
+    remediation_plan: RemediationPlan | None = None
