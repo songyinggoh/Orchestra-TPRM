@@ -99,6 +99,9 @@ terraform/.claude/
 docs/submission/*.pdf
 docs/submission/*.webm
 docs/submission/*.mp4
+docs/submission/narration.mp3
+docs/submission/narration_timing.json
+docs/submission/narration_scenes/
 
 # Playwright recorder node_modules
 scripts/node_modules/
