@@ -54,6 +54,15 @@ Path: `docs/submission/demo.mp4` (≤ 5 min, MP4)
 https://orchestra-tprm-67479435861.us-central1.run.app
 ```
 
+> **Note for judges:** The live demo runs in deterministic replay mode against
+> committed `examples/tprm/*/replay.jsonl` files (line-delimited LLMCalled events
+> captured from prior Gemini 2.5 Flash runs). Same SSE event stream, same
+> dashboard UI, same agent pipeline. Inspect `src/orchestra/providers/google.py`
+> and `_build_provider` in `src/orchestra_tprm/server/app.py` to see the live
+> Google AI Studio wiring; the `REPLAY_MODE=true` env var switches the server
+> to `ReplayProvider` so the public demo stays reachable through the judging
+> window without burning quota.
+
 ## GitHub repo
 
 ```

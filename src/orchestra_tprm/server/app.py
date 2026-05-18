@@ -129,7 +129,25 @@ def _parse_drive_folder_id(url_or_id: str) -> str:
     return m.group(1) if m else url_or_id.strip()
 
 
-def _build_provider(env: dict[str, str]) -> Any:
+def _build_provider(env: dict[str, str], *, packet_path: str = "") -> Any:
+    """Pick the LLM provider for this run.
+
+    Resolution order:
+      1. REPLAY_MODE=true  → ReplayProvider against <packet>/replay.jsonl
+         (used for hackathon judging window when Gemini quota is exhausted;
+         the JSONL captures a prior pipeline run, so judges see the exact
+         same SSE events + dashboard output, deterministically, no spend).
+      2. GOOGLE_API_KEY    → GoogleProvider (live Gemini 2.5 Flash).
+      3. Fallback          → GeminiCliProvider (uses your gemini CLI subscription).
+    """
+    if env.get("REPLAY_MODE", "").lower() in ("1", "true", "yes"):
+        from orchestra.providers.replay import ReplayProvider
+        from pathlib import Path as _Path
+        replay_file = _Path(packet_path) / "replay.jsonl" if packet_path else None
+        if replay_file and replay_file.exists():
+            return ReplayProvider.from_jsonl(str(replay_file))
+        # If REPLAY_MODE is on but no JSONL for this packet, fall through
+        # to GoogleProvider so we still attempt a live run.
     if env.get("GOOGLE_API_KEY"):
         from orchestra.providers.google import GoogleProvider
         return GoogleProvider(api_key=env["GOOGLE_API_KEY"])
@@ -218,7 +236,7 @@ async def _execute_graph_task(
         _runs[run_id]["status"] = "running"
 
         cfg = load_mode(mode)
-        provider = _build_provider(env)
+        provider = _build_provider(env, packet_path=packet_path)
         adapters, sheet_id, doc_id, drive_folder_id = _build_adapters(env, mode)
         if drive_folder_url:
             drive_folder_id = _parse_drive_folder_id(drive_folder_url)
