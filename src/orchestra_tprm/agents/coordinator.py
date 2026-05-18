@@ -225,10 +225,44 @@ class Coordinator:
         findings: list[Finding],
         narrative: str,
     ) -> dict[str, Any]:
+        # Pull structured outputs from the 3-agent delta (2026-05-18).
+        # Both models may arrive as Pydantic instances or as dicts (replay/serialization).
+        from orchestra_tprm.schemas import RemediationPlan, RiskScore
+        ra_raw = state.get("risk_assessment")
+        rp_raw = state.get("remediation_plan")
+        risk_assessment_obj: RiskScore | None = None
+        if isinstance(ra_raw, RiskScore):
+            risk_assessment_obj = ra_raw
+        elif isinstance(ra_raw, dict):
+            try:
+                risk_assessment_obj = RiskScore(**ra_raw)
+            except Exception:  # noqa: BLE001
+                risk_assessment_obj = None
+        remediation_plan_obj: RemediationPlan | None = None
+        if isinstance(rp_raw, RemediationPlan):
+            remediation_plan_obj = rp_raw
+        elif isinstance(rp_raw, dict):
+            try:
+                remediation_plan_obj = RemediationPlan(**rp_raw)
+            except Exception:  # noqa: BLE001
+                remediation_plan_obj = None
+        risk_summary = (
+            f"{risk_assessment_obj.overall}/100 ({risk_assessment_obj.verdict})"
+            if risk_assessment_obj is not None else ""
+        )
+        remediation_summary = ""
+        if remediation_plan_obj is not None:
+            item_count = len(remediation_plan_obj.items)
+            remediation_summary = (
+                f"{item_count} item(s), {remediation_plan_obj.horizon_days}d horizon"
+                if item_count else "None"
+            )
         row = {
             "subject": state.get("subject_name", ""),
             "policy_verdict": state.get("policy_verdict", ""),
             "risk_score": state.get("risk_score", 0),
+            "risk_assessment": risk_summary,
+            "remediation": remediation_summary,
             "categories": ",".join(f.category for f in findings),
             "narrative": narrative,
         }
@@ -291,6 +325,36 @@ class Coordinator:
         sections: dict[str, str] = {}
         sections["Executive Summary"] = executive_summary
 
+        # Risk Score section (new 2026-05-18) — placed after Exec Summary so
+        # the score frames the rest of the memo. Coerce dict → model defensively.
+        from orchestra_tprm.schemas import RiskScore as _RiskScoreModel
+        ra_raw_doc = state.get("risk_assessment")
+        ra_obj: _RiskScoreModel | None = None
+        if isinstance(ra_raw_doc, _RiskScoreModel):
+            ra_obj = ra_raw_doc
+        elif isinstance(ra_raw_doc, dict):
+            try:
+                ra_obj = _RiskScoreModel(**ra_raw_doc)
+            except Exception:  # noqa: BLE001
+                ra_obj = None
+        if ra_obj is not None:
+            lines = [
+                f"Overall: {ra_obj.overall}/100 ({(ra_obj.verdict or '').upper()})",
+                "",
+                ra_obj.explanation or "",
+            ]
+            if ra_obj.top_risk_drivers:
+                lines.append("")
+                lines.append("Top Risk Drivers:")
+                for d in ra_obj.top_risk_drivers:
+                    lines.append(f"  - [{d.dimension}] ({d.severity}) {d.one_liner}")
+            if ra_obj.dimensions:
+                lines.append("")
+                lines.append("Per-Dimension Scores:")
+                for k, v in sorted(ra_obj.dimensions.items(), key=lambda kv: -kv[1]):
+                    lines.append(f"  - {k}: {v}/100")
+            sections["Risk Score"] = "\n".join(lines)
+
         if ic_memo is not None:
             ic_lines = [
                 f"Recommendation: {ic_memo.recommendation.upper()}",
@@ -315,6 +379,32 @@ class Coordinator:
 
         # 4. Risk Register (sourced from IC memo)
         sections["Risk Register"] = _render_risk_register(ic_memo)
+
+        # 4a. Remediation Roadmap (new 2026-05-18). Coerce dict → model.
+        from orchestra_tprm.schemas import RemediationPlan as _RemediationPlanModel
+        rp_raw_doc = state.get("remediation_plan")
+        rp_obj: _RemediationPlanModel | None = None
+        if isinstance(rp_raw_doc, _RemediationPlanModel):
+            rp_obj = rp_raw_doc
+        elif isinstance(rp_raw_doc, dict):
+            try:
+                rp_obj = _RemediationPlanModel(**rp_raw_doc)
+            except Exception:  # noqa: BLE001
+                rp_obj = None
+        if rp_obj is not None:
+            lines = [rp_obj.summary or "", "", f"Horizon: {rp_obj.horizon_days} days"]
+            if rp_obj.items:
+                for priority in ("P0", "P1", "P2"):
+                    bucket = [i for i in rp_obj.items if i.priority == priority]
+                    if not bucket:
+                        continue
+                    lines.append("")
+                    lines.append(f"{priority}:")
+                    for i in bucket:
+                        days_str = f"~{i.est_effort_days}d" if i.est_effort_days is not None else "?"
+                        lines.append(f"  - {i.action}  [{i.owner}, {days_str}]")
+                        lines.append(f"    Leverage: {i.leverage}")
+            sections["Remediation Roadmap"] = "\n".join(lines)
 
         # 5. PMI 100-Day Plan
         sections["PMI 100-Day Plan"] = _render_pmi_plan(pmi_plan)
