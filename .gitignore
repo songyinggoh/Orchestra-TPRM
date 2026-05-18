@@ -97,3 +97,10 @@ terraform/.claude/
 
 # Build artifacts that shouldn't be tracked
 docs/submission/*.pdf
+docs/submission/*.webm
+docs/submission/*.mp4
+
+# Playwright recorder node_modules
+scripts/node_modules/
+scripts/package.json
+scripts/package-lock.json
