@@ -58,6 +58,8 @@ pytest_results.txt
 research/
 AGENTS.md
 GEMINI.md
+CLAUDE.md
+docs/superpowers/
 
 # Local scratch artifacts
 VERIFICATION.md
