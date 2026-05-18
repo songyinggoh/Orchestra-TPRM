@@ -87,31 +87,34 @@ _runs: dict[str, dict[str, Any]] = {}
 
 # Friendly display names for pipeline nodes
 _NODE_LABELS: dict[str, str] = {
-    "bootstrap_node": "Bootstrap",
-    "intake_node": "Document Intake",
+    "bootstrap": "Bootstrap",
+    "intake": "Document Intake",
     "vdr_gate": "VDR Completeness Gate",
     "router": "Document Router",
-    "LegalAgent": "Legal Specialist",
-    "SecurityAgent": "Security Specialist",
-    "ExternalAgent": "External Intelligence",
-    "CodeAgent": "Code Scanner",
-    "FinancialAgent": "Financial Analyst",
-    "SaaSMetricsAgent": "SaaS Metrics",
+    "legal": "Legal Specialist",
+    "security": "Security Specialist",
+    "external": "External Intelligence",
+    "code": "Code Scanner",
+    "financial": "Financial Analyst",
+    "saas_metrics": "SaaS Metrics",
+    "esg": "ESG Specialist",
+    "risk_score": "Risk Scoring",
     "policy": "Policy Engine",
+    "remediation": "Remediation Planner",
     "coordinator": "Report Coordinator",
     "pmi_planner": "PMI Planner",
 }
 
 # Vendor-mode node order (for progress display)
 _VENDOR_PIPELINE = [
-    "bootstrap_node", "intake_node", "router",
-    "LegalAgent", "SecurityAgent", "ExternalAgent", "CodeAgent", "ESGAgent",
+    "bootstrap", "intake", "router",
+    "legal", "security", "external", "code", "esg",
     "risk_score", "policy", "remediation", "coordinator",
 ]
 _MA_PIPELINE = [
-    "bootstrap_node", "intake_node", "vdr_gate", "router",
-    "LegalAgent", "SecurityAgent", "ExternalAgent", "CodeAgent",
-    "FinancialAgent", "SaaSMetricsAgent", "ESGAgent",
+    "bootstrap", "intake", "vdr_gate", "router",
+    "legal", "security", "external", "code",
+    "financial", "saas_metrics", "esg",
     "risk_score", "policy", "remediation", "coordinator", "pmi_planner",
 ]
 
@@ -312,6 +315,9 @@ async def _execute_graph_task(
         verdict = final_state.get("policy_verdict", "")
         risk_score = final_state.get("risk_score", 0)
 
+        ra = final_state.get("risk_assessment")
+        rp = final_state.get("remediation_plan")
+
         _runs[run_id]["status"] = "done"
         _runs[run_id]["verdict"] = verdict
         _runs[run_id]["risk_score"] = risk_score
@@ -326,6 +332,8 @@ async def _execute_graph_task(
             "verdict_local_path": final_state.get("verdict_local_path", ""),
             "ic_memo": final_state.get("ic_memo"),
             "pmi_plan": final_state.get("pmi_plan"),
+            "risk_assessment": ra.model_dump() if hasattr(ra, "model_dump") else ra,
+            "remediation_plan": rp.model_dump() if hasattr(rp, "model_dump") else rp,
         }))
 
     except Exception as exc:

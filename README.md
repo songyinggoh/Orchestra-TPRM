@@ -21,8 +21,8 @@ Both packets ship with `replay.jsonl` files captured from prior Gemini 2.5 Flash
 ## Quick start
 
 ```bash
-git clone https://github.com/songyinggoh/Orchestra-TPRM.git
-cd Orchestra-TPRM
+git clone https://github.com/songyinggoh/Orchestra.git
+cd Orchestra
 pip install -e ".[tprm,server,storage,telemetry]"
 ```
 
@@ -118,11 +118,11 @@ tests/tprm/             — 243 tests (unit + integration)
 
 Two YAML-defined modes share the same graph; only the active specialists and output kind differ.
 
-**`vendor`** — vendor onboarding review. Specialists: `legal`, `security`, `code`, `external`. Coordinator writes findings to a Google Sheet.
+**`vendor`** — vendor onboarding review. Specialists: `legal`, `security`, `code`, `external`, `esg`. Coordinator writes findings to a Google Sheet.
 
-**`ma`** — M&A due-diligence review. Specialists: `legal`, `security`, `code`, `external`, `financial`. Coordinator writes a structured deal memo (Executive Summary, Strategic Fit, Risk Areas, Recommended Conditions) to a Google Doc.
+**`ma`** — M&A due-diligence review. Specialists: `legal`, `security`, `code`, `external`, `financial`, `saas_metrics`, `esg`. Coordinator writes a structured deal memo (Executive Summary, Strategic Fit, Risk Areas, Recommended Conditions) to a Google Doc.
 
-Both modes use `gemini-2.5-flash` for all agents. Concurrency: `Semaphore(5)` so the five specialists run in parallel (configurable via `GEMINI_CLI_CONCURRENCY`).
+Both modes use `gemini-2.5-flash` for all agents. Concurrency: `Semaphore(5)` — up to seven specialists run in parallel (configurable via `GEMINI_CLI_CONCURRENCY`).
 
 ## Tests + CI
 

@@ -62,6 +62,8 @@ interface VerdictData {
   verdict_doc_id?: string;
   ic_memo?: ICMemo;
   pmi_plan?: PMIPlan;
+  risk_assessment?: RiskScore | null;
+  remediation_plan?: RemediationPlan | null;
 }
 
 interface RunState {
@@ -82,27 +84,33 @@ interface RunState {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const VENDOR_PIPELINE = [
-  "bootstrap_node", "intake_node", "router",
-  "LegalAgent", "SecurityAgent", "ExternalAgent", "CodeAgent",
-  "policy", "coordinator",
+  "bootstrap", "intake", "router",
+  "legal", "security", "external", "code", "esg",
+  "risk_score", "policy", "remediation", "coordinator",
 ];
 const MA_PIPELINE = [
-  "bootstrap_node", "intake_node", "vdr_gate", "router",
-  "LegalAgent", "SecurityAgent", "ExternalAgent", "CodeAgent",
-  "FinancialAgent", "SaaSMetricsAgent",
-  "policy", "coordinator", "pmi_planner",
+  "bootstrap", "intake", "vdr_gate", "router",
+  "legal", "security", "external", "code",
+  "financial", "saas_metrics", "esg",
+  "risk_score", "policy", "remediation", "coordinator", "pmi_planner",
 ];
 const NODE_LABELS: Record<string, string> = {
-  bootstrap_node: "Bootstrap",
-  intake_node: "Document Intake",
+  bootstrap: "Bootstrap",
+  intake: "Document Intake",
+  vdr_gate: "VDR Gate",
   router: "Document Router",
-  LegalAgent: "Legal",
-  SecurityAgent: "Security",
-  ExternalAgent: "External Intel",
-  CodeAgent: "Code Scan",
-  FinancialAgent: "Financial",
+  legal: "Legal",
+  security: "Security",
+  external: "External Intel",
+  code: "Code Scan",
+  financial: "Financial",
+  saas_metrics: "SaaS Metrics",
+  esg: "ESG",
+  risk_score: "Risk Scoring",
   policy: "Policy Engine",
+  remediation: "Remediation",
   coordinator: "Coordinator",
+  pmi_planner: "PMI Planner",
 };
 
 const SEV_COLOR: Record<string, string> = {
@@ -1180,7 +1188,12 @@ export default function App() {
                     : prev.nodeLabels,
                 };
               case "verdict":
-                return { ...prev, verdict: msg };
+                return {
+                  ...prev,
+                  verdict: msg,
+                  risk_assessment: msg.risk_assessment ?? prev.risk_assessment,
+                  remediation_plan: msg.remediation_plan ?? prev.remediation_plan,
+                };
               default:
                 return prev;
             }
