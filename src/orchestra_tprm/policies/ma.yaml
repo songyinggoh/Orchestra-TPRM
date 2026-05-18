@@ -7,6 +7,12 @@ weights:
   high: 10
   critical: 25
 
+# RiskScoreAgent thresholds (0-100 overall score → traffic-light verdict)
+# M&A is stricter than vendor.
+risk_score_thresholds:
+  green_max: 20
+  amber_max: 59
+
 verdict:
   reject_if_any_critical: true   # any critical finding blocks the deal
   reject_above: 29               # score > 29 (≥ 3× high) → block
@@ -18,3 +24,6 @@ critical_categories:
   - code-risk
   - sql-injection
   - ssrf
+  - net-zero-commitment
+  - modern-slavery-statement
+  - anti-corruption-policy

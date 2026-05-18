@@ -7,6 +7,11 @@ weights:
   high: 7
   critical: 15
 
+# RiskScoreAgent thresholds (0-100 overall score → traffic-light verdict)
+risk_score_thresholds:
+  green_max: 30
+  amber_max: 69
+
 verdict:
   reject_if_any_critical: true   # any critical finding forces reject
   reject_above: 30               # total score > 30 → reject
@@ -19,6 +24,9 @@ critical_categories:
   - soc2-cc6.2
   - data-breach
   - export-control
+  - net-zero-commitment
+  - modern-slavery-statement
+  - anti-corruption-policy
 
 # Minimum compliance posture required for approval
 required_certifications:
