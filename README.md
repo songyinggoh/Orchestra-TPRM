@@ -67,50 +67,69 @@ See [docs/developer.md](./docs/developer.md) for CLI flags, replay recording, an
                 └─────┬─────┘
                       │
                 ┌─────▼─────┐
+                │ vdr_gate  │   (M&A only) checks data-room completeness
+                └─────┬─────┘
+                      │
+                ┌─────▼─────┐
                 │  router   │   gemini-2.5-flash, routes docs → specialists
                 └─────┬─────┘
                       │ parallel fan-out
-       ┌──────────┬───┴────┬──────────┬─────────────┐
-       ▼          ▼        ▼          ▼             ▼
-   ┌───────┐ ┌────────┐ ┌──────┐ ┌─────────┐ ┌───────────┐
-   │ legal │ │security│ │ code │ │external │ │ financial │ (M&A only)
-   └───┬───┘ └───┬────┘ └──┬───┘ └────┬────┘ └─────┬─────┘
-       └────────┴──────────┴──────────┴────────────┘
-                      │ join
-                ┌─────▼─────┐
-                │  policy   │   scores findings, applies policy pack
-                └─────┬─────┘
-                      │
-                ┌─────▼──────┐
-                │coordinator │   Sheet (vendor) or Doc (M&A)
-                └─────┬──────┘
-                      │
-                     END
+   ┌──────┬──────┬────┴──┬─────────┬───────────┬───────────┬─────┐
+   ▼      ▼      ▼       ▼         ▼           ▼           ▼     │
+┌─────┐┌──────┐┌────┐┌────────┐┌──────────┐┌─────────────┐┌─────┐│
+│legal││secur.││code││external││financial ││saas_metrics ││ esg ││
+└──┬──┘└──┬───┘└─┬──┘└───┬────┘└────┬─────┘└──────┬──────┘└──┬──┘│
+   │      │     │       │      (M&A only)    (M&A only)      │  │
+   └──────┴─────┴───────┴────────────┴─────────────┴─────────┘  │
+                      │ join                                    │
+                ┌─────▼──────┐                                  │
+                │ risk_score │   0-100 score, verdict, drivers  │
+                └─────┬──────┘                                  │
+                      │                                         │
+                ┌─────▼─────┐                                   │
+                │  policy   │   applies YAML rule pack          │
+                └─────┬─────┘                                   │
+                      │                                         │
+                ┌─────▼──────┐                                  │
+                │remediation │   P0/P1/P2 plan + contract lev.  │
+                └─────┬──────┘                                  │
+                      │                                         │
+                ┌─────▼──────┐                                  │
+                │coordinator │   Sheet (vendor) or Doc (M&A)    │
+                └─────┬──────┘                                  │
+                      │                                         │
+                ┌─────▼──────┐                                  │
+                │pmi_planner │   (M&A only) post-close 100-day  │
+                └─────┬──────┘                                  │
+                      │                                         │
+                     END                                        │
 ```
 
 | Layer | Tech |
 |---|---|
-| LLM | Gemini 2.5 Flash via Google AI Studio (free tier) or Gemini CLI subscription |
-| Backend | FastAPI + Server-Sent Events for live progress |
+| LLM | Gemini 2.5 Flash via Google AI Studio (free tier) — SaaSMetrics uses Gemini 2.5 Pro |
+| Backend | FastAPI + Uvicorn + Server-Sent Events for live progress |
 | Frontend | React 19 + Vite + TypeScript |
 | Orchestration | Orchestra framework (typed state, parallel fan-out, compile-time graph validation) |
 | Storage | SQLite (events, dev) · Cloud SQL Postgres + BigQuery (production) |
 | Outputs | Google Sheets · Google Docs · BigQuery findings table |
-| Deploy | Cloud Run + Pub/Sub + Cloud Trace |
+| Observability | OpenTelemetry → Google Cloud Trace |
+| Deploy | Google Cloud Run · Cloud Build · Container Registry |
 
 ## Repository layout
 
 ```
-src/orchestra/          — framework (fork of songyinggoh/Orchestra)
+src/orchestra/          — multi-agent orchestration framework
 src/orchestra_tprm/     — TPRM application
-  ├─ agents/            — intake, router, policy, coordinator, specialists/
+  ├─ agents/            — intake, router, risk_score, policy, remediation,
+  │                       coordinator, pmi_planner, specialists/
   ├─ adapters/          — Drive, Sheets, Docs, BigQuery, GitHub, GeminiFiles
   ├─ modes/             — vendor.yaml, ma.yaml (mode + policy packs)
   ├─ server/app.py      — FastAPI + SSE
   └─ cli.py             — orchestra-tprm entry point
 dashboard/              — React 19 + Vite dashboard
 examples/tprm/          — demo packets + recorded replay JSONLs
-tests/tprm/             — 243 tests (unit + integration)
+tests/tprm/             — TPRM unit + integration suite
 .github/workflows/      — CI (lint, type-check, security, unit, TPRM, UI builds)
 ```
 
@@ -122,7 +141,7 @@ Two YAML-defined modes share the same graph; only the active specialists and out
 
 **`ma`** — M&A due-diligence review. Specialists: `legal`, `security`, `code`, `external`, `financial`, `saas_metrics`, `esg`. Coordinator writes a structured deal memo (Executive Summary, Strategic Fit, Risk Areas, Recommended Conditions) to a Google Doc.
 
-Both modes use `gemini-2.5-flash` for all agents. Concurrency: `Semaphore(5)` — up to seven specialists run in parallel (configurable via `GEMINI_CLI_CONCURRENCY`).
+Vendor mode uses `gemini-2.5-flash` for all agents. M&A mode uses `gemini-2.5-flash` for everything except SaaSMetrics, which runs on `gemini-2.5-pro` for tighter SaaS-metric reasoning. Concurrency: `Semaphore(5)` — up to seven specialists run in parallel (configurable via `GEMINI_CLI_CONCURRENCY`).
 
 ## Tests + CI
 
@@ -139,9 +158,9 @@ GitHub Actions runs on every push/PR:
 - **ui-build** — both the framework UI and the TPRM dashboard
 - **integration-test** — Postgres + Redis + NATS services
 
-## Credits
+## Framework
 
-Built on the [Orchestra](https://github.com/songyinggoh/Orchestra) multi-agent framework — typed state with reducers, compile-time graph validation, parallel fan-out, scripted-LLM test harness, and seven LLM provider backends.
+The TPRM application is built on the Orchestra framework (`src/orchestra/`), which provides typed state with reducer functions, compile-time graph validation, parallel fan-out via asyncio, a scripted-LLM test harness, and seven LLM provider backends (Google AI Studio, Gemini CLI, Anthropic, OpenAI-compatible HTTP, Claude Code CLI, Codex CLI, Ollama).
 
 ## License
 
