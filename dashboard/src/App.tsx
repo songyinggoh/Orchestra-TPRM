@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from "react";
+import { RiskScoreHero, RiskScore } from "./components/RiskScoreHero";
+import { RemediationRoadmap, RemediationPlan } from "./components/RemediationRoadmap";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -71,6 +73,8 @@ interface RunState {
   completedNodes: string[];
   nodeLabels: Record<string, string>;
   verdict: VerdictData | null;
+  risk_assessment?: RiskScore | null;
+  remediation_plan?: RemediationPlan | null;
   error: string | null;
   elapsedSec: number;
 }
@@ -1787,6 +1791,10 @@ export default function App() {
                   </div>
                 </div>
               )}
+
+              {/* Risk score + remediation */}
+              <RiskScoreHero score={(rs.risk_assessment as RiskScore) ?? null} />
+              <RemediationRoadmap plan={(rs.remediation_plan as RemediationPlan) ?? null} />
 
               {/* Verdict card */}
               {rs.verdict && <VerdictCard data={rs.verdict} mode={rs.mode} />}
