@@ -27,9 +27,25 @@ async def managed_proc(
     stdin: int | None = PIPE,
     stdout: int | None = PIPE,
     stderr: int | None = PIPE,
+    env: dict[str, str] | None = None,
 ):  # type: ignore[return]
-    """Spawn a subprocess and guarantee cleanup on exit — kills on exception."""
-    proc = await asyncio.create_subprocess_exec(*cmd, stdin=stdin, stdout=stdout, stderr=stderr)
+    """Spawn a subprocess and guarantee cleanup on exit — kills on exception.
+
+    Args:
+        *cmd: Command and arguments to execute.
+        stdin: stdin pipe mode (default PIPE).
+        stdout: stdout pipe mode (default PIPE).
+        stderr: stderr pipe mode (default PIPE).
+        env: Optional environment dict for the subprocess. When *None* the
+            subprocess inherits the parent environment unchanged.
+    """
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdin=stdin,
+        stdout=stdout,
+        stderr=stderr,
+        env=env,
+    )
     try:
         yield proc
     finally:

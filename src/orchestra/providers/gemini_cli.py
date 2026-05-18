@@ -63,6 +63,30 @@ _SAFETY_RX = re.compile(
     re.IGNORECASE,
 )
 
+# Exit code 55 = "not trusted directory" — the CLI refuses to run in
+# non-interactive mode when --skip-trust is absent and the workspace has
+# not been trusted interactively.  We pass --skip-trust in every invocation
+# so this code should never appear, but we keep the constant for the
+# error-message hint below.
+_EXIT_CODE_NOT_TRUSTED = 55
+
+
+def _gemini_env() -> dict[str, str]:
+    """Return an environment dict for Gemini CLI subprocesses.
+
+    Inherits the full parent environment and unconditionally sets
+    ``GEMINI_CLI_TRUST_WORKSPACE=true`` so the CLI never exits with the
+    "not trusted directory" error (exit code 55) when running non-interactively.
+
+    On Cloud Run the variable is typically already set; overwriting it with
+    the same value is harmless.  To opt out locally, set
+    ``GEMINI_CLI_NO_TRUST_OVERRIDE=1`` in the parent environment.
+    """
+    env = dict(os.environ)
+    if not os.environ.get("GEMINI_CLI_NO_TRUST_OVERRIDE"):
+        env["GEMINI_CLI_TRUST_WORKSPACE"] = "true"
+    return env
+
 
 class GeminiCliProvider:
     """LLM provider that delegates to the ``gemini`` CLI.
@@ -125,7 +149,12 @@ class GeminiCliProvider:
             "--prompt",
             " ",  # activates headless mode; real content arrives via stdin
             "--yolo",  # suppress interactive confirmation prompts (e.g. MCP auth)
+            "--skip-trust",  # bypass "not trusted directory" guard (exit code 55)
         ]
+
+        # Subprocess environment: inherit parent env and add trust override so
+        # the Gemini CLI does not exit with code 55 ("not trusted directory").
+        proc_env = _gemini_env()
 
         # Quota-aware retry loop. Each attempt acquires the global gate
         # only for the subprocess call itself; the backoff sleep happens
@@ -136,7 +165,7 @@ class GeminiCliProvider:
             try:
                 async with _GEMINI_CLI_GATE:
                     _logger.debug("gemini_cli_gate_acquired attempt=%s", attempt)
-                    async with managed_proc(*cmd) as proc:
+                    async with managed_proc(*cmd, env=proc_env) as proc:
                         try:
                             stdout, stderr = await asyncio.wait_for(
                                 proc.communicate(stdin_payload.encode()),
@@ -149,6 +178,17 @@ class GeminiCliProvider:
                             ) from None
                     if proc.returncode != 0:
                         err_text = stderr.decode(errors="replace").strip()
+                        if proc.returncode == _EXIT_CODE_NOT_TRUSTED:
+                            raise ProviderError(
+                                f"gemini CLI exited with code {proc.returncode} "
+                                "(not trusted directory). "
+                                "The --skip-trust flag was passed but was not "
+                                "recognised by this CLI version. "
+                                "Fix: upgrade the Gemini CLI, or run "
+                                "`gemini` once interactively in this directory "
+                                "to add it to the trusted-workspace list.\n"
+                                f"  stderr: {err_text[:500]}"
+                            )
                         raise ProviderError(
                             f"gemini CLI exited with code {proc.returncode}.\n"
                             f"  stderr: {err_text[:500]}"
@@ -232,10 +272,14 @@ class GeminiCliProvider:
             "--prompt",
             " ",  # activates headless mode
             "--yolo",  # suppress interactive confirmation prompts
+            "--skip-trust",  # bypass "not trusted directory" guard (exit code 55)
         ]
 
+        # Subprocess environment: same trust override as complete().
+        proc_env = _gemini_env()
+
         try:
-            async with managed_proc(*cmd) as proc:
+            async with managed_proc(*cmd, env=proc_env) as proc:
                 assert proc.stdin is not None
                 assert proc.stdout is not None
 

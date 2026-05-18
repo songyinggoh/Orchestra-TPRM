@@ -32,7 +32,7 @@ _logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 _ALLOWED_PACKET_ROOT = Path(
-    os.environ.get("PACKET_ROOT", "examples")
+    os.environ.get("PACKET_ROOT", ".")
 ).resolve()
 
 

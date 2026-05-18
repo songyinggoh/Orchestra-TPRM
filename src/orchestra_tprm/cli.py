@@ -56,6 +56,7 @@ class _RecordingProvider:
 
     async def complete(self, messages: list[Message], **kwargs: Any) -> LLMResponse:
         import time
+        from orchestra.providers.replay import hash_messages
         t0 = time.monotonic()
         response = await self._inner.complete(messages, **kwargs)
         duration_ms = (time.monotonic() - t0) * 1000
@@ -77,6 +78,7 @@ class _RecordingProvider:
             "cost_usd": usage.estimated_cost_usd if usage else 0.0,
             "duration_ms": duration_ms,
             "finish_reason": response.finish_reason or "stop",
+            "prompt_hash": hash_messages(messages),
         })
         return response
 
@@ -146,6 +148,16 @@ def _resolve_provider(env: dict[str, str], replay: Optional[Path], *, local: boo
     if env.get("GOOGLE_API_KEY"):
         from orchestra.providers.google import GoogleProvider
         return GoogleProvider(api_key=env["GOOGLE_API_KEY"])
+    import shutil
+    if not shutil.which("gemini"):
+        typer.secho(
+            "Error: 'gemini' CLI not found on PATH.\n"
+            "Install it from https://github.com/google-gemini/gemini-cli or "
+            "set GOOGLE_API_KEY to use the REST API instead.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(1)
     from orchestra.providers.gemini_cli import GeminiCliProvider
     return GeminiCliProvider()
 
@@ -188,6 +200,14 @@ def main(
     if effective_local:  # local adapters or recording run
         if record_replay is not None:
             # Recording: need real LLM, but Fake* adapters for outputs
+            import shutil
+            if not shutil.which("gemini"):
+                typer.secho(
+                    "Error: 'gemini' CLI not found on PATH. --record-replay requires the Gemini CLI.",
+                    fg=typer.colors.RED,
+                    err=True,
+                )
+                raise typer.Exit(1)
             from orchestra.providers.gemini_cli import GeminiCliProvider
             provider = GeminiCliProvider()
         else:

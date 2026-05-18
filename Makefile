@@ -2,8 +2,14 @@ PROJECT := advance-replica-496216-n6
 REGION  := us-central1
 IMAGE   := $(REGION)-docker.pkg.dev/$(PROJECT)/orchestra/tprm:latest
 
+# Ensure Artifact Registry repo exists before pushing
+repo:
+	gcloud artifacts repositories create orchestra \
+	  --repository-format=docker --location=$(REGION) \
+	  --project=$(PROJECT) 2>/dev/null || true
+
 # Build container image via Cloud Build (no local Docker daemon needed)
-build:
+build: repo
 	gcloud builds submit --project=$(PROJECT) --tag=$(IMAGE) --timeout=25m .
 
 # Provision infra + deploy (runs build first)

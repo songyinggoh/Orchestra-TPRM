@@ -101,19 +101,17 @@ const NODE_LABELS: Record<string, string> = {
   coordinator: "Coordinator",
 };
 
-// MD3 Google-palette severity colors
 const SEV_COLOR: Record<string, string> = {
-  critical: "#ea4335",
-  high:     "#fa7b17",
-  medium:   "#fbbc04",
-  low:      "#34a853",
+  critical: "#ffffff",
+  high:     "rgba(255,255,255,0.7)",
+  medium:   "rgba(255,255,255,0.5)",
+  low:      "rgba(255,255,255,0.35)",
 };
 
-// MD3 Google-palette verdict colors
 const VERDICT_COLOR: Record<string, string> = {
-  reject:      "#ea4335",
-  conditional: "#fbbc04",
-  approve:     "#34a853",
+  reject:      "#ffffff",
+  conditional: "rgba(255,255,255,0.6)",
+  approve:     "rgba(255,255,255,0.4)",
 };
 
 // Material Symbols icon name per verdict
@@ -131,23 +129,21 @@ const SEV_ICON: Record<string, string> = {
   low:      "info",
 };
 
-// IC decision color palette (CONTEXT.md locked mapping)
 const IC_COLOR: Record<string, string> = {
-  "deal-stopper":          "#ea4335",
-  "price-adjustment":      "#fa7b17",
-  "SPA-protection":        "#fbbc04",
-  "post-close-monitoring": "#34a853",
+  "deal-stopper":          "#ffffff",
+  "price-adjustment":      "rgba(255,255,255,0.7)",
+  "SPA-protection":        "rgba(255,255,255,0.5)",
+  "post-close-monitoring": "rgba(255,255,255,0.35)",
 };
 
-// Workstream badge color palette
 const WS_COLOR: Record<string, string> = {
-  legal:      "#4285f4",
-  financial:  "#34a853",
-  tech:       "#8430ce",
-  commercial: "#1a73e8",
-  hr:         "#e8710a",
-  esg:        "#0f9d58",
-  regulatory: "#d93025",
+  legal:      "rgba(255,255,255,0.8)",
+  financial:  "rgba(255,255,255,0.75)",
+  tech:       "rgba(255,255,255,0.7)",
+  commercial: "rgba(255,255,255,0.65)",
+  hr:         "rgba(255,255,255,0.6)",
+  esg:        "rgba(255,255,255,0.55)",
+  regulatory: "rgba(255,255,255,0.5)",
 };
 
 const DEFAULT_WORKSTREAMS: MAScope["active_workstreams"] = [
@@ -290,6 +286,9 @@ function SourceToggle({
 
   return (
     <div
+      id="source-toggle"
+      role="group"
+      aria-labelledby="source-toggle-label"
       style={{
         display: "flex",
         border: "1px solid var(--md-sys-color-outline)",
@@ -305,7 +304,7 @@ function SourceToggle({
         let bg: string;
         let color: string;
         if (isActive) {
-          bg = isHovered ? "#1765cc" : "var(--md-sys-color-primary)";
+          bg = isHovered ? "rgba(255,255,255,0.85)" : "var(--md-sys-color-primary)";
           color = "var(--md-sys-color-on-primary)";
         } else if (isHovered) {
           bg = "var(--md-sys-color-surface-container-high)";
@@ -318,6 +317,7 @@ function SourceToggle({
         return (
           <button
             key={opt.id}
+            aria-pressed={isActive}
             onClick={() => onChange(opt.id)}
             onMouseEnter={() => setHovered(opt.id)}
             onMouseLeave={() => setHovered(null)}
@@ -361,7 +361,7 @@ function SourceToggle({
 
 function VerdictCard({ data, mode }: { data: VerdictData; mode: Mode }) {
   const verdict = data.policy_verdict.toLowerCase();
-  const color = VERDICT_COLOR[verdict] ?? "#8b8fa8";
+  const color = VERDICT_COLOR[verdict] ?? "rgba(255,255,255,0.5)";
   const sevCounts = groupBySeverity(data.findings);
   const verdictIcon = VERDICT_ICON[verdict] ?? "help";
 
@@ -629,9 +629,9 @@ function VerdictCard({ data, mode }: { data: VerdictData; mode: Mode }) {
 
 function ICMemoSection({ memo }: { memo: ICMemo }) {
   const recColor = {
-    proceed: "#34a853",
-    reprice: "#fa7b17",
-    walk:    "#ea4335",
+    proceed: "rgba(255,255,255,0.4)",
+    reprice: "rgba(255,255,255,0.65)",
+    walk:    "#ffffff",
   }[memo.recommendation];
   const recIcon = { proceed: "check_circle", reprice: "trending_down", walk: "cancel" }[memo.recommendation];
 
@@ -1231,11 +1231,11 @@ export default function App() {
   let runBtnScale = 1;
   if (!isRunDisabled) {
     if (runBtnActive) {
-      runBtnBg = "#1557b0";
+      runBtnBg = "rgba(255,255,255,0.75)";
       runBtnShadow = "var(--md-sys-elevation-1)";
       runBtnScale = 0.99;
     } else if (runBtnHovered) {
-      runBtnBg = "#1765cc";
+      runBtnBg = "rgba(255,255,255,0.85)";
       runBtnShadow = "var(--md-sys-elevation-3)";
     }
   }
@@ -1315,6 +1315,7 @@ export default function App() {
         {/* "New Assessment" button — shown in run view */}
         {rs && (
           <button
+            aria-label="Start new assessment"
             onClick={reset}
             onMouseEnter={() => setNewRunHovered(true)}
             onMouseLeave={() => setNewRunHovered(false)}
@@ -1429,7 +1430,7 @@ export default function App() {
 
               {/* Document Source */}
               <div>
-                <label style={{ marginBottom: "var(--space-sm)" }}>Document Source</label>
+                <label id="source-toggle-label" htmlFor="source-toggle" style={{ marginBottom: "var(--space-sm)" }}>Document Source</label>
                 <SourceToggle value={sourceType} onChange={setSourceType} />
               </div>
 

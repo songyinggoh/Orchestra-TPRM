@@ -137,6 +137,7 @@ class LLMCalled(WorkflowEvent):
     cost_usd: float = 0.0
     duration_ms: float = 0.0
     finish_reason: str = ""
+    prompt_hash: str = ""  # SHA-256 hex of input messages; enables deterministic replay under parallel fan-out
 
 
 class ToolCalled(WorkflowEvent):
