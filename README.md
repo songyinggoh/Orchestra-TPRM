@@ -1,21 +1,22 @@
 # Orchestra — Multi-Agent Third-Party Risk Review on Google Gemini
 
-A multi-agent framework and TPRM application that compresses a 4-week vendor or M&A due-diligence review into ~60 seconds of parallel agent work, powered by Google Gemini 2.5 Flash.
+A multi-agent framework and TPRM application that compresses a 4-week vendor or M&A due-diligence review into under 90 seconds of parallel agent work, powered by Google Gemini 2.5 Flash.
 
 > **Hackathon submission** — [lablab.ai *Transforming Enterprise Through AI*](https://lablab.ai/), Track 2 (AI Agents with Google AI Studio). Submitted 2026-05-19.
+> **Live demo:** https://orchestra-tprm-67479435861.us-central1.run.app
 
 ---
 
 ## What it does
 
-Feed in a vendor packet (SOC 2, MSA, GitHub repo) or an M&A packet (10-K, acquisition agreement, codebase audit). Four-to-five specialist agents review it in parallel, a policy agent scores it, and a coordinator writes the verdict to a Google Sheet (vendor mode) or Google Doc deal memo (M&A mode).
+Feed in a vendor packet (SOC 2, MSA, GitHub repo) or an M&A packet (10-K, acquisition agreement, codebase audit). Seven specialist agents (Legal, Security, Code, External, Financial, ESG, SaaSMetrics) review it in parallel; a Risk Scoring agent produces a 0-100 score with a traffic-light verdict; a Policy agent applies the rule pack; a Remediation agent generates a prioritized P0/P1/P2 action plan with contract leverage; and a Coordinator writes the verdict to a Google Sheet (vendor mode) or Google Doc deal memo (M&A mode).
 
-| Demo | Mode | Findings | Verdict | Risk score |
-|---|---|---:|---|---:|
-| **Acme Cloud Analytics** — `examples/tprm/acme/` | vendor | 27 | reject | 171 |
-| **HashiCorp Inc.** — `examples/tprm/hashicorp/` | M&A | 55 | reject | 700 |
+| Demo | Mode | Active specialists | Verdict | Output |
+|---|---|---:|---|---|
+| **Acme Cloud Analytics** — `examples/tprm/acme/` | vendor | 5 (no financial) | conditional-approve | Google Sheet row |
+| **HashiCorp Inc.** — `examples/tprm/hashicorp/` | M&A | 7 (all) | reject | Google Doc deal memo |
 
-Both numbers come from real Gemini 2.5 Flash runs recorded into `examples/tprm/*/replay.jsonl` — you can replay them offline with no API keys.
+Both packets ship with `replay.jsonl` files captured from prior Gemini 2.5 Flash runs — you can replay them offline with no API keys, or hit the live demo URL above (which runs in `REPLAY_MODE=true` to stay reachable through the judging window without burning quota).
 
 ## Quick start
 
