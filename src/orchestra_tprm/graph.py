@@ -32,6 +32,7 @@ from orchestra_tprm.agents.pmi_planner import PMIPlannerAgent
 from orchestra_tprm.agents.policy import PolicyAgent
 from orchestra_tprm.agents.specialists.code import CodeAgent
 from orchestra_tprm.agents.specialists.external import ExternalAgent
+from orchestra_tprm.agents.specialists.esg import ESGAgent
 from orchestra_tprm.agents.specialists.legal import LegalAgent
 from orchestra_tprm.agents.specialists.security import SecurityAgent
 from orchestra_tprm.modes.config import ModeConfig
@@ -141,6 +142,8 @@ def _build_specialists(cfg: ModeConfig, adapters: Adapters) -> dict[str, Any]:
         active["financial"] = FinancialAgent(model=spec.financial)
     if spec.saas_metrics and SaaSMetricsAgent is not None:
         active["saas_metrics"] = SaaSMetricsAgent(model=spec.saas_metrics)
+    if spec.esg:
+        active["esg"] = ESGAgent(model=spec.esg)
     return active
 
 
@@ -336,7 +339,11 @@ _KIND_TO_AGENT_NAMES = {
     "financial_filing": ["FinancialAgent", "LegalAgent", "SaaSMetricsAgent"],
     "source_code": ["CodeAgent"],
     "investor_deck": ["FinancialAgent", "SaaSMetricsAgent"],
-    "annual_report": ["LegalAgent", "FinancialAgent", "SecurityAgent", "SaaSMetricsAgent"],
+    "annual_report": ["LegalAgent", "FinancialAgent", "SecurityAgent", "SaaSMetricsAgent", "ESGAgent"],
+    "sustainability_report": ["ESGAgent"],
+    "code_of_conduct": ["ESGAgent"],
+    "diversity_report": ["ESGAgent"],
+    "governance_disclosure": ["ESGAgent"],
     "unknown": ["LegalAgent", "SecurityAgent"],
 }
 

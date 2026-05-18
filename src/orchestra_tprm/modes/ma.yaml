@@ -8,6 +8,7 @@ specialists:
   code: gemini-2.5-flash
   external: gemini-2.5-flash
   saas_metrics: gemini-2.5-pro
+  esg: gemini-2.5-flash
 policy_model: gemini-2.5-flash
 coordinator_model: gemini-2.5-flash
 coordinator_template: coordinator_ma.tmpl

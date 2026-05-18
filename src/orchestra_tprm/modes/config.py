@@ -21,6 +21,7 @@ class SpecialistModels(BaseModel):
     code: str | None = None
     external: str | None = None
     saas_metrics: str | None = None
+    esg: str | None = None
 
 
 class ModeConfig(BaseModel):
