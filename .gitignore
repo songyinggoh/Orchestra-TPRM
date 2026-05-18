@@ -80,3 +80,20 @@ terraform/.terraform.lock.hcl
 # Dashboard dependencies
 dashboard/node_modules/
 dashboard/dist/
+
+# Local run artifacts (logs + verdict scratch)
+*.log
+dashboard.log
+err.log
+out.log
+output.json
+deal_memo.json
+*_verdict.json
+*_live_verdict.json
+
+# Internal tooling state (Superpowers brainstorm visual companion, etc.)
+.superpowers/
+terraform/.claude/
+
+# Build artifacts that shouldn't be tracked
+docs/submission/*.pdf
