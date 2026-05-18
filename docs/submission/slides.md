@@ -267,7 +267,9 @@ Default-active in **both vendor and M&A modes**. `critical_categories` in policy
 **Try it now:**
 
 - **Live demo:** https://orchestra-tprm-67479435861.us-central1.run.app
+  *(deterministic replay mode — same SSE stream, same pipeline, no quota burn)*
 - **Repo:** https://github.com/songyinggoh/Orchestra
-- **Replay** the HashiCorp run offline with `python -m orchestra_tprm --mode ma --packet examples/tprm/hashicorp --replay examples/tprm/hashicorp/replay.jsonl`
+- **Replay locally** with `orchestra-tprm --mode ma --packet examples/tprm/hashicorp --replay examples/tprm/hashicorp/replay.jsonl`
 
 **Track 2 — Google AI Studio / Gemini 2.5 Flash**
+*(GoogleProvider wired in `src/orchestra/providers/google.py`; live-vs-replay toggled by `REPLAY_MODE` env var)*
