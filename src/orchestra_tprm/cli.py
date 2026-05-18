@@ -260,11 +260,20 @@ def main(
         _run_and_maybe_record(graph, initial, provider, persist=True, record_replay=record_replay)
     )
     state = result.state
+    def _serialise(obj: Any) -> Any:
+        if obj is None or isinstance(obj, (str, int, float, bool, dict, list)):
+            return obj
+        if hasattr(obj, "model_dump"):
+            return obj.model_dump()
+        return obj
     payload = {
         "mode": state.get("mode"),
         "subject_name": state.get("subject_name"),
         "policy_verdict": state.get("policy_verdict"),
         "risk_score": state.get("risk_score"),
+        # 3-agent delta (2026-05-18): include structured outputs in --out file
+        "risk_assessment": _serialise(state.get("risk_assessment")),
+        "remediation_plan": _serialise(state.get("remediation_plan")),
         "verdict_doc_id": state.get("verdict_doc_id"),
         "verdict_local_path": state.get("verdict_local_path", ""),
         "findings": [
