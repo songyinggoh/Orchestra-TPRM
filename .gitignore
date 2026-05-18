@@ -60,6 +60,32 @@ AGENTS.md
 GEMINI.md
 CLAUDE.md
 docs/superpowers/
+docs/competitive-analysis.md
+ENVIRONMENT-LIMITATIONS.md
+
+# AI coding assistant configs
+.github/copilot-instructions.md
+
+# Internal CI workflows
+.github/workflows/mirror-to-gitlab.yml
+.github/workflows/phase3-gates.yml
+
+# Dashboard internal specs
+dashboard/UI-REVIEW.md
+dashboard/UI-SPEC.md
+
+# Dev scripts
+dev.ps1
+scripts/test_adc.py
+scripts/generate_narration.py
+scripts/generate_narration_gtts.py
+scripts/record_demo.mjs
+scripts/synthesize_replays.py
+
+# Submission build sources (keep artifacts, not sources)
+docs/submission/cloud-run-url.txt
+docs/submission/cover.html
+docs/submission/video-script.md
 
 # Local scratch artifacts
 VERIFICATION.md
