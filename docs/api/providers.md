@@ -1,6 +1,6 @@
 # Providers API Reference
 
-Orchestra includes eleven built-in LLM providers (HttpProvider, AnthropicProvider, ClaudeCodeProvider, GeminiCliProvider, CodexCliProvider, GoogleProvider, OllamaProvider, CallableProvider, CachedProvider, ReplayProvider, and StrategySwitchingProvider) and a protocol for implementing custom ones.
+Orchestra includes ten built-in LLM providers (HttpProvider, AnthropicProvider, ClaudeCodeProvider, GeminiCliProvider, CodexCliProvider, GoogleProvider, CallableProvider, CachedProvider, ReplayProvider, and StrategySwitchingProvider) and a protocol for implementing custom ones.
 
 ## LLMProvider Protocol
 
@@ -18,7 +18,7 @@ class LLMProvider(Protocol):
 
 ## HttpProvider
 
-OpenAI-compatible HTTP provider. Works with OpenAI, Ollama, and any OpenAI-compatible endpoint.
+OpenAI-compatible HTTP provider. Works with OpenAI and any OpenAI-compatible endpoint.
 
 ::: orchestra.providers.http.HttpProvider
     options:
@@ -40,12 +40,6 @@ from orchestra.providers import HttpProvider
 provider = HttpProvider(
     api_key="sk-...",
     default_model="gpt-4o-mini",
-)
-
-# Ollama (local)
-provider = HttpProvider(
-    base_url="http://localhost:11434/v1",
-    default_model="llama3",
 )
 
 # Custom endpoint

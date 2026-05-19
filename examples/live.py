@@ -1,17 +1,15 @@
 """Live end-to-end demo: real agents, real LLM, real orchestration.
 
 Proves the Orchestra framework works against a real model — not mocks.
-Auto-detects your provider (Anthropic, OpenAI, Google, or Ollama).
+Auto-detects your provider (Anthropic, OpenAI, or Google).
 
 Usage:
     python examples/live.py                          # auto-detect
-    python examples/live.py --provider ollama         # explicit provider
     python examples/live.py --provider openai --model gpt-4o
     python examples/live.py --provider anthropic
 
 Requirements:
     At least ONE of:
-    - Ollama running locally (ollama serve + ollama pull llama3.1)
     - OPENAI_API_KEY environment variable set
     - ANTHROPIC_API_KEY environment variable set
     - GOOGLE_API_KEY environment variable set
@@ -56,7 +54,7 @@ async def resolve_provider(
 ) -> tuple[Any, str]:
     """Detect and return (provider_instance, model_name).
 
-    Checks in order: Anthropic, OpenAI, Google, Ollama.
+    Checks in order: Anthropic, OpenAI, Google.
     Returns the first that works, or exits with instructions.
     """
 
@@ -89,34 +87,8 @@ async def resolve_provider(
         print(f"  Provider: GoogleProvider / {model}")
         return GoogleProvider(), model
 
-    # --- Check Ollama ---
-    try:
-        from orchestra.providers.ollama import OllamaProvider
-
-        ollama = OllamaProvider()
-        if await ollama.health_check():
-            models = await ollama.list_models()
-            if models:
-                model = want_model or models[0]
-                print("  Detected: Ollama running at localhost:11434")
-                print(f"  Provider: OllamaProvider / {model}")
-                return ollama, model
-            else:
-                print("  Ollama is running but no models are pulled.")
-                print("  Fix: ollama pull llama3.1")
-                sys.exit(1)
-    except Exception:
-        pass
-
     # --- Nothing found ---
-    print("  No provider found. Set up at least one:")
-    print()
-    print("  Option 1 (local, free):")
-    print("    brew install ollama  # or https://ollama.com")
-    print("    ollama serve")
-    print("    ollama pull llama3.1")
-    print()
-    print("  Option 2 (API key):")
+    print("  No provider found. Set up at least one API key:")
     print("    export OPENAI_API_KEY=sk-...")
     print("    export ANTHROPIC_API_KEY=sk-ant-...")
     print("    export GOOGLE_API_KEY=AIza...")
@@ -126,11 +98,7 @@ async def resolve_provider(
 def _build_explicit(name: str, model: str | None) -> tuple[Any, str]:
     """Build a provider from an explicit --provider flag."""
     name = name.lower()
-    if name == "ollama":
-        from orchestra.providers.ollama import OllamaProvider
-
-        return OllamaProvider(), model or "llama3.1"
-    elif name in ("openai", "http"):
+    if name in ("openai", "http"):
         from orchestra.providers.http import HttpProvider
 
         return HttpProvider(), model or "gpt-4o-mini"
@@ -144,7 +112,7 @@ def _build_explicit(name: str, model: str | None) -> tuple[Any, str]:
         return GoogleProvider(), model or "gemini-2.0-flash"
     else:
         print(f"  Unknown provider: {name}")
-        print("  Available: ollama, openai, anthropic, google")
+        print("  Available: openai, anthropic, google")
         sys.exit(1)
 
 
@@ -446,7 +414,7 @@ async def demo_tools(provider: Any, model: str) -> None:
         if "tool" in err.lower() or "function" in err.lower() or "400" in err:
             print("  Tool calling not supported by this model. Skipping.")
             print(
-                "  (Try a model with tool support: llama3.1,"
+                "  (Try a model with tool support:"
                 " gpt-4o-mini, claude-haiku-4-5-20251001)"
             )
         else:

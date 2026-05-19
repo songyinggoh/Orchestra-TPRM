@@ -15,40 +15,6 @@ def _clear(monkeypatch, *prefixes: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Ollama
-# ---------------------------------------------------------------------------
-
-
-def test_ollama_base_url_default() -> None:
-    """OllamaProvider without env var uses localhost:11434."""
-    from orchestra.providers.ollama import OllamaProvider
-
-    p = OllamaProvider()
-    assert p._base_url == "http://localhost:11434"
-
-
-def test_ollama_base_url_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """OllamaProvider respects OLLAMA_BASE_URL env var."""
-    monkeypatch.setenv("OLLAMA_BASE_URL", "http://myollama:11434")
-    _clear(monkeypatch, "orchestra.providers.ollama")
-    from orchestra.providers.ollama import OllamaProvider
-
-    p = OllamaProvider()
-    assert "myollama" in p._base_url, f"Expected 'myollama' in _base_url, got {p._base_url!r}"
-
-
-def test_ollama_explicit_arg_overrides_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Explicit base_url argument takes precedence over env var."""
-    monkeypatch.setenv("OLLAMA_BASE_URL", "http://envollama:11434")
-    _clear(monkeypatch, "orchestra.providers.ollama")
-    from orchestra.providers.ollama import OllamaProvider
-
-    p = OllamaProvider(base_url="http://explicit:11434")
-    assert "explicit" in p._base_url
-    assert "envollama" not in p._base_url
-
-
-# ---------------------------------------------------------------------------
 # NATS
 # ---------------------------------------------------------------------------
 

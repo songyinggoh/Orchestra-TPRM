@@ -36,7 +36,6 @@ dependencies = [
 [project.optional-dependencies]
 anthropic = ["anthropic>=0.20"]
 google = ["google-generativeai>=0.5"]
-ollama = []  # No SDK needed, uses httpx (already in core)
 all-providers = ["orchestra-tprm[anthropic,google,nats]"]
 storage = ["aiosqlite>=0.19"]
 postgres = ["asyncpg>=0.29"]
@@ -153,7 +152,7 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks integration tests",
     "load: marks load/stress tests requiring 1000+ concurrent tasks (deselect with '-m \"not load\"')",
-    "live: marks tests that hit real LLM APIs — requires credentials or Ollama (deselect with '-m \"not live\"')",
+    "live: marks tests that hit real LLM APIs — requires credentials (deselect with '-m \"not live\"')",
 ]
 
 [tool.ruff]

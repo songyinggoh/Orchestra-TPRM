@@ -191,10 +191,6 @@ class TestDocImports:
         # docs/api/providers.md: from orchestra.providers import AnthropicProvider
         from orchestra.providers import AnthropicProvider  # noqa: F401
 
-    def test_import_ollama_provider_from_providers(self) -> None:
-        # CLAUDE.md: from orchestra.providers.ollama import OllamaProvider
-        from orchestra.providers import OllamaProvider  # noqa: F401
-
     def test_import_claude_code_provider_direct(self) -> None:
         # CLAUDE.md: from orchestra.providers.claude_code import ClaudeCodeProvider
         from orchestra.providers.claude_code import ClaudeCodeProvider  # noqa: F401
@@ -214,10 +210,6 @@ class TestDocImports:
     def test_import_google_provider_direct(self) -> None:
         # CLAUDE.md: from orchestra.providers.google import GoogleProvider
         from orchestra.providers.google import GoogleProvider  # noqa: F401
-
-    def test_import_ollama_provider_direct(self) -> None:
-        # CLAUDE.md: from orchestra.providers.ollama import OllamaProvider
-        from orchestra.providers.ollama import OllamaProvider  # noqa: F401
 
     def test_import_http_provider_direct(self) -> None:
         # CLAUDE.md: from orchestra.providers.http import HttpProvider
@@ -580,13 +572,6 @@ class TestDocAPIContracts:
             "AnthropicProvider uses 'default_model' (not 'model'). "
             "docs/api/providers.md shows 'model=' which is incorrect."
         )
-
-    def test_ollama_provider_uses_default_model(self) -> None:
-        # CLAUDE.md shows OllamaProvider(default_model="llama3.1") -- param name correct
-        from orchestra.providers.ollama import OllamaProvider
-
-        sig = inspect.signature(OllamaProvider.__init__)
-        assert "default_model" in sig.parameters
 
     # --- setup_logging ---
 

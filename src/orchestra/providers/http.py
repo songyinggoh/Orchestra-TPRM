@@ -2,7 +2,7 @@
 
 Zero extra dependencies beyond httpx (already in core).
 Works with any endpoint that speaks the OpenAI chat completions format:
-OpenAI, Ollama, vLLM, LiteLLM, Azure OpenAI, Groq, Together, Mistral, etc.
+OpenAI, vLLM, LiteLLM, Azure OpenAI, Groq, Together, Mistral, etc.
 
 Environment variables (checked in priority order):
     ORCHESTRA_BASE_URL   — endpoint base URL  (e.g. https://api.groq.com/openai/v1)

@@ -21,7 +21,6 @@ def auto_provider() -> object:
         5. ANTHROPIC_API_KEY                        → AnthropicProvider  (API key)
         6. OPENAI_API_KEY                           → HttpProvider  (API key)
         7. GOOGLE_API_KEY                           → GoogleProvider  (API key)
-        8. Ollama at localhost:11434                 → OllamaProvider  (local)
 
     Raises:
         RuntimeError: if no backend is detected.
@@ -62,18 +61,6 @@ def auto_provider() -> object:
 
         return GoogleProvider()
 
-    # 8. Ollama — check synchronously via a quick socket probe.
-    import socket
-
-    try:
-        s = socket.create_connection(("localhost", 11434), timeout=1.0)
-        s.close()
-        from orchestra.providers.ollama import OllamaProvider
-
-        return OllamaProvider()
-    except OSError:
-        pass
-
     raise RuntimeError(
         "No LLM backend detected.\n"
         "\n"
@@ -81,9 +68,6 @@ def auto_provider() -> object:
         "  - Claude Code → install the claude CLI\n"
         "  - Gemini CLI  → install the gemini CLI\n"
         "  - Codex CLI   → install the codex CLI\n"
-        "\n"
-        "Local (free):\n"
-        "  - Ollama → ollama serve && ollama pull llama3.1\n"
         "\n"
         "Direct API access:\n"
         "  - export ANTHROPIC_API_KEY=sk-ant-...\n"
@@ -103,10 +87,6 @@ def __getattr__(name: str) -> object:
         from orchestra.providers.google import GoogleProvider
 
         return GoogleProvider
-    if name == "OllamaProvider":
-        from orchestra.providers.ollama import OllamaProvider
-
-        return OllamaProvider
     if name == "ClaudeCodeProvider":
         from orchestra.providers.claude_code import ClaudeCodeProvider
 

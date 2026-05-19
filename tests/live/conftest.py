@@ -9,7 +9,6 @@ Or pick a single backend:
 
     pytest tests/live/ -m live -k anthropic -v
     pytest tests/live/ -m live -k openai -v
-    pytest tests/live/ -m live -k ollama -v
 """
 
 from __future__ import annotations
@@ -72,26 +71,6 @@ def google_model():
     return "gemini-2.0-flash"
 
 
-@pytest.fixture
-async def ollama_provider():
-    from orchestra.providers.ollama import OllamaProvider
-
-    p = OllamaProvider()
-    if not await p.health_check():
-        pytest.skip("Ollama not running — start with: ollama serve")
-    models = await p.list_models()
-    if not models:
-        pytest.skip("No Ollama models pulled — run: ollama pull llama3.1")
-    return p
-
-
-@pytest.fixture
-async def ollama_model(ollama_provider):
-    """Return the first available Ollama model."""
-    models = await ollama_provider.list_models()
-    return models[0]
-
-
 # ---------------------------------------------------------------------------
 # 'any_provider' — first available, used for provider-agnostic tests
 # ---------------------------------------------------------------------------
@@ -106,7 +85,6 @@ async def any_provider_and_model():
         ANTHROPIC_API_KEY                        → Anthropic
         OPENAI_API_KEY                           → OpenAI
         GOOGLE_API_KEY                           → Google
-        Ollama running locally                   → Ollama (no key needed)
 
     Skips the test if nothing is available.
     """

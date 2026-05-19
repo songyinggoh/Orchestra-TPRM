@@ -12,7 +12,6 @@ Run locally:
     pytest tests/live/ -m live -k anthropic -v
     pytest tests/live/ -m live -k openai -v
     pytest tests/live/ -m live -k google -v
-    pytest tests/live/ -m live -k ollama -v
 
     # One test class, any backend:
     pytest tests/live/test_live_providers.py::TestMultiAgentRouting -v
@@ -21,7 +20,6 @@ Prerequisites (at least one):
     export ANTHROPIC_API_KEY=sk-ant-...
     export OPENAI_API_KEY=sk-...
     export GOOGLE_API_KEY=AIza...
-    ollama serve && ollama pull llama3.1
 """
 
 from __future__ import annotations
@@ -116,17 +114,6 @@ class TestBasicCompletion:
             temperature=0.0,
         )
         assert "pong" in result.content.lower()
-
-    @pytest.mark.asyncio
-    async def test_ollama_complete(self, ollama_provider, ollama_model):
-        result = await ollama_provider.complete(
-            [_user("Reply with only the word: HELLO")],
-            model=ollama_model,
-        )
-        assert isinstance(result, LLMResponse)
-        assert result.content
-        assert len(result.content.strip()) > 0
-
 
 # ---------------------------------------------------------------------------
 # 2. Streaming — provider.stream() yields real StreamChunks
@@ -261,18 +248,6 @@ class TestToolCalling:
         assert "46" in result.output
 
     @pytest.mark.asyncio
-    async def test_ollama_tool_called(self, ollama_provider, ollama_model):
-        result = await self._run_tool_agent(ollama_provider, ollama_model)
-        assert result.tool_calls_made, "Expected at least one tool call"
-        tool_names = [tc.tool_call.name for tc in result.tool_calls_made]
-        assert "add_numbers" in tool_names
-
-    @pytest.mark.asyncio
-    async def test_ollama_tool_result_correct(self, ollama_provider, ollama_model):
-        result = await self._run_tool_agent(ollama_provider, ollama_model)
-        assert "46" in result.output
-
-    @pytest.mark.asyncio
     async def test_any_provider_tool_called(self, any_provider_and_model):
         provider, model = any_provider_and_model
         result = await self._run_tool_agent(provider, model)
@@ -339,12 +314,6 @@ class TestMultiTurnToolUse:
     async def test_openai_tool_called_in_loop(self, openai_provider, openai_model):
         result = await self._run_capital_agent(openai_provider, openai_model)
         assert result.tool_calls_made
-        assert "Paris" in result.output
-
-    @pytest.mark.asyncio
-    async def test_ollama_tool_called_in_loop(self, ollama_provider, ollama_model):
-        result = await self._run_capital_agent(ollama_provider, ollama_model)
-        assert result.tool_calls_made, "Agent should have called lookup_capital"
         assert "Paris" in result.output
 
     @pytest.mark.asyncio
@@ -528,16 +497,6 @@ class TestMultiAgentRouting:
         assert state["answer"]
 
     @pytest.mark.asyncio
-    async def test_ollama_routing_produces_answer(self, ollama_provider, ollama_model):
-        state = await self._run_routing(
-            ollama_provider,
-            ollama_model,
-            "How do Python generators work?",
-        )
-        assert state["category"]
-        assert state["answer"]
-
-    @pytest.mark.asyncio
     async def test_any_provider_routing_executes_two_nodes(self, any_provider_and_model):
         provider, model = any_provider_and_model
         classifier = BaseAgent(
@@ -686,13 +645,6 @@ class TestParallelFanOut:
     @pytest.mark.asyncio
     async def test_openai_parallel_fan_out(self, openai_provider, openai_model):
         result = await self._run_parallel(openai_provider, openai_model)
-        findings = result.state["findings"]
-        assert len(findings) == 3
-        assert result.state["synthesis"]
-
-    @pytest.mark.asyncio
-    async def test_ollama_parallel_fan_out(self, ollama_provider, ollama_model):
-        result = await self._run_parallel(ollama_provider, ollama_model)
         findings = result.state["findings"]
         assert len(findings) == 3
         assert result.state["synthesis"]

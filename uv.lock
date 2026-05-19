@@ -3423,7 +3423,7 @@ requires-dist = [
     { name = "wasmtime", marker = "extra == 'security'", specifier = ">=23.0" },
     { name = "watchfiles", marker = "extra == 'server'", specifier = ">=0.21" },
 ]
-provides-extras = ["anthropic", "google", "ollama", "all-providers", "storage", "postgres", "telemetry", "cache", "server", "routing", "crypto", "security", "redis", "memory", "vectordb", "qdrant", "promptshield", "nats", "messaging", "ray", "dev", "test-advanced", "docs", "tprm", "tprm-dev"]
+provides-extras = ["anthropic", "google", "all-providers", "storage", "postgres", "telemetry", "cache", "server", "routing", "crypto", "security", "redis", "memory", "vectordb", "qdrant", "promptshield", "nats", "messaging", "ray", "dev", "test-advanced", "docs", "tprm", "tprm-dev"]
 
 [[package]]
 name = "packaging"

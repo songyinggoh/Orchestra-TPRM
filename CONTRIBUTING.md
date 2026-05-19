@@ -32,7 +32,7 @@ pytest tests/unit/test_state.py -v
 
 > **Note:** Running `pytest tests/` without a subdirectory will execute ALL tests
 > including integration, live, and load tests, which require external services
-> (Postgres, Redis, NATS, Ollama, etc.). Use `pytest tests/unit/` for quick local
+> (Postgres, Redis, NATS, etc.). Use `pytest tests/unit/` for quick local
 > validation. Also note that `[dev]` extras do not include `locust` or `hypothesis`;
 > those are in `[test-advanced]`.
 

@@ -160,7 +160,7 @@ GitHub Actions runs on every push/PR:
 
 ## Framework
 
-The TPRM application is built on the Orchestra framework (`src/orchestra/`), which provides typed state with reducer functions, compile-time graph validation, parallel fan-out via asyncio, a scripted-LLM test harness, and seven LLM provider backends (Google AI Studio, Gemini CLI, Anthropic, OpenAI-compatible HTTP, Claude Code CLI, Codex CLI, Ollama).
+The TPRM application is built on the Orchestra framework (`src/orchestra/`), which provides typed state with reducer functions, compile-time graph validation, parallel fan-out via asyncio, a scripted-LLM test harness, and six LLM provider backends (Google AI Studio, Gemini CLI, Anthropic, OpenAI-compatible HTTP, Claude Code CLI, Codex CLI).
 
 ## License
 
